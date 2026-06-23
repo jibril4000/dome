@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glass Dome &amp; Hexagon Frame Visualizer</title>
+<style>
+  :root{
+    --bg:#0f1419; --panel:#161c24; --panel2:#1d2530; --line:#2a3441;
+    --text:#e6edf3; --muted:#8b97a7; --accent:#4aa3ff;
+    --ok:#3ecf8e; --warn:#ffb454; --bad:#ff5d5d; --touch:#ff8c42;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);color:var(--text);font-size:14px;line-height:1.45}
+  .wrap{display:flex;min-height:100vh;flex-wrap:wrap}
+  .controls{width:340px;flex:0 0 340px;background:var(--panel);border-right:1px solid var(--line);
+    padding:16px;overflow-y:auto;max-height:100vh}
+  .stage{flex:1 1 480px;display:flex;flex-direction:column;gap:14px;padding:16px;min-width:360px}
+  h1{font-size:17px;margin:0 0 4px}
+  h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);
+    margin:18px 0 8px;border-bottom:1px solid var(--line);padding-bottom:5px}
+  .sub{color:var(--muted);font-size:12px;margin:0 0 10px}
+  .field{margin-bottom:11px}
+  .field label{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px}
+  .field label span.name{color:var(--text)}
+  .field label span.val{color:var(--accent);font-variant-numeric:tabular-nums;font-weight:600}
+  input[type=range]{width:100%;accent-color:var(--accent);margin:2px 0}
+  input[type=number]{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--text);
+    border-radius:6px;padding:6px 8px;font-size:13px;font-variant-numeric:tabular-nums}
+  .row{display:flex;gap:8px}
+  .row>*{flex:1}
+  .toggle{display:flex;align-items:center;gap:8px;margin:6px 0;cursor:pointer;user-select:none}
+  .toggle input{accent-color:var(--accent);width:16px;height:16px}
+  button{background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:7px;
+    padding:8px 10px;cursor:pointer;font-size:13px;transition:.12s}
+  button:hover{background:#283341;border-color:var(--accent)}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#04121f;font-weight:600}
+  button.primary:hover{filter:brightness(1.08)}
+  .btnrow{display:flex;gap:8px;margin-top:6px}
+  canvas{background:#0a0e13;border:1px solid var(--line);border-radius:10px;width:100%;display:block}
+  .status{padding:14px 16px;border-radius:10px;border:1px solid var(--line);background:var(--panel)}
+  .status .big{font-size:20px;font-weight:700;display:flex;align-items:center;gap:10px}
+  .dot{width:14px;height:14px;border-radius:50%;display:inline-block}
+  .readout{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:12px}
+  .stat{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:9px 11px}
+  .stat .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+  .stat .v{font-size:17px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:2px}
+  table{width:100%;border-collapse:collapse;margin-top:6px;font-variant-numeric:tabular-nums}
+  th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:var(--muted);margin-top:8px}
+  .legend span{display:flex;align-items:center;gap:6px}
+  .sw{width:14px;height:14px;border-radius:3px;display:inline-block;border:1px solid #0006}
+  .hint{font-size:11px;color:var(--muted);margin-top:3px}
+  .canvas-title{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <!-- ================= CONTROLS ================= -->
+  <div class="controls">
+    <h1>Dome &amp; Hexagon Frame</h1>
+    <p class="sub">Size a mitered wooden hexagon around a circular glass dome. The frame touches the dome first at the <b>middle of each board</b>.</p>
+
+    <h2>Glass Dome</h2>
+    <div class="field">
+      <label><span class="name">Overall diameter (lip edge)</span><span class="val" id="v_dia">62.25"</span></label>
+      <input type="number" id="dia" value="62.25" step="0.125" min="1">
+    </div>
+    <div class="field">
+      <label><span class="name">Lip width</span><span class="val" id="v_lip">3.75"</span></label>
+      <input type="number" id="lip" value="3.75" step="0.125" min="0">
+    </div>
+    <div class="field">
+      <label><span class="name">Dome height (center)</span><span class="val" id="v_h">14"</span></label>
+      <input type="number" id="domeH" value="14" step="0.25" min="0">
+    </div>
+
+    <h2>Boards (2&times;4 = 3.5&quot; &times; 1.5&quot;)</h2>
+    <div class="field">
+      <label><span class="name">Board face width</span><span class="val" id="v_bw">3.5"</span></label>
+      <input type="number" id="bw" value="3.5" step="0.125" min="0.25">
+    </div>
+    <div class="field">
+      <label><span class="name">Board thickness</span><span class="val" id="v_bt">1.5"</span></label>
+      <input type="number" id="bt" value="1.5" step="0.125" min="0.25">
+    </div>
+    <label class="toggle"><input type="checkbox" id="onEdge"><span>Stand boards on edge (radial width = thickness)</span></label>
+    <div class="hint">Flat: frame is 3.5" wide / 1.5" tall. On edge: 1.5" wide / 3.5" tall. Radial width only changes the outer size &amp; cut list — not the clearance.</div>
+
+    <h2>Hexagon Size</h2>
+    <div class="field">
+      <label><span class="name">Inner flat-to-flat</span><span class="val" id="v_ff">64.25"</span></label>
+      <input type="range" id="ff" min="40" max="100" step="0.0625" value="64.25">
+      <input type="number" id="ffn" value="64.25" step="0.0625" style="margin-top:6px">
+      <div class="hint">Distance across the inside of the frame, flat side to flat side (= 2 &times; inner apothem).</div>
+    </div>
+    <div class="field">
+      <label><span class="name">Required clearance</span><span class="val" id="v_cl">1.00"</span></label>
+      <input type="number" id="clr" value="1" step="0.0625" min="0">
+    </div>
+    <div class="btnrow">
+      <button class="primary" id="fit">Auto-fit to clearance</button>
+      <button id="touchBtn">Set to touching</button>
+    </div>
+
+    <h2>Display</h2>
+    <label class="toggle"><input type="checkbox" id="tGlass" checked><span>Show glass base circle</span></label>
+    <label class="toggle"><input type="checkbox" id="tLip" checked><span>Shade lip ring</span></label>
+    <label class="toggle"><input type="checkbox" id="tDims" checked><span>Show dimensions &amp; gaps</span></label>
+    <label class="toggle"><input type="checkbox" id="tCorner" checked><span>Show corner gap marker</span></label>
+    <label class="toggle"><input type="checkbox" id="tGrid"><span>Show 6" grid</span></label>
+    <label class="toggle"><input type="checkbox" id="tElev" checked><span>Show side cross-section</span></label>
+    <label class="toggle"><input type="checkbox" id="tRot"><span>Rotate hexagon 30° (point-to-flat)</span></label>
+  </div>
+
+  <!-- ================= STAGE ================= -->
+  <div class="stage">
+    <div class="status" id="status">
+      <div class="big"><span class="dot" id="dot"></span><span id="statusText">—</span></div>
+      <div class="readout" id="readout"></div>
+    </div>
+
+    <div class="panel">
+      <div class="canvas-title">Top-down (plan) view</div>
+      <canvas id="plan" width="900" height="640"></canvas>
+      <div class="legend">
+        <span><i class="sw" style="background:#2b6cb0"></i>Glass dome</span>
+        <span><i class="sw" style="background:#3a4658"></i>Lip ring</span>
+        <span><i class="sw" style="background:#8a6d3b"></i>Wooden boards</span>
+        <span><i class="sw" style="background:#3ecf8e"></i>Clearance OK</span>
+        <span><i class="sw" style="background:#ffb454"></i>Below target</span>
+        <span><i class="sw" style="background:#ff5d5d"></i>Touching / interfering</span>
+      </div>
+    </div>
+
+    <div class="panel" id="elevWrap">
+      <div class="canvas-title">Side cross-section (through two opposite boards)</div>
+      <canvas id="elev" width="900" height="300"></canvas>
+    </div>
+
+    <div class="panel">
+      <div class="canvas-title">Cut list — 6 identical boards, mitered frame</div>
+      <table id="cuts"></table>
+      <div class="hint" id="cutNote"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const TAN30 = Math.tan(Math.PI/6);   // 0.57735
+const COS30 = Math.cos(Math.PI/6);   // 0.86603
+const fmt = (n,d=2)=> (Math.round(n*10**d)/10**d).toFixed(d);
+
+// ---- gather inputs ----
+function readModel(){
+  const dia   = parseFloat($('dia').value)   || 0;
+  const lip   = parseFloat($('lip').value)   || 0;
+  const domeH = parseFloat($('domeH').value) || 0;
+  const bw    = parseFloat($('bw').value)    || 0;
+  const bt    = parseFloat($('bt').value)    || 0;
+  const onEdge= $('onEdge').checked;
+  const ff    = parseFloat($('ffn').value)   || 0;
+  const clr   = parseFloat($('clr').value)   || 0;
+
+  const Router = dia/2;              // lip outer edge radius (widest part of dome)
+  const Rglass = Math.max(0, Router - lip); // where glass meets the flange
+  const w = onEdge ? bt : bw;        // radial width of frame ring
+  const frameH = onEdge ? bw : bt;   // vertical height of frame
+  const aIn  = ff/2;                 // inner apothem
+  const aOut = aIn + w;              // outer apothem
+
+  // clearance is measured to the widest dome circle (lip outer edge)
+  const gapSide = aIn - Router;                 // governing gap (at board midpoints)
+  const rCircIn = aIn / COS30;                  // inner corner radius
+  const gapCorner = rCircIn - Router;           // radial gap at corners
+  const gapGlass = aIn - Rglass;                // gap to glass base (info)
+
+  // cut list
+  const sIn  = 2 * aIn  * TAN30;     // inner edge length (short point)
+  const sOut = 2 * aOut * TAN30;     // outer edge length (long point)
+
+  return {dia,lip,domeH,bw,bt,onEdge,ff,clr,Router,Rglass,w,frameH,
+          aIn,aOut,gapSide,gapCorner,gapGlass,rCircIn,sIn,sOut};
+}
+
+// ---- status classification ----
+function classify(m){
+  const g = m.gapSide, c = m.clr;
+  if (g < -0.0005) return {key:'bad',  color:'var(--bad)',  text:'INTERFERENCE — boards overlap the dome by '+fmt(-g)+'"'};
+  if (Math.abs(g) <= 0.0005) return {key:'touch',color:'var(--touch)',text:'TOUCHING — frame just contacts the dome (0" gap)'};
+  if (g < c) return {key:'warn',color:'var(--warn)',text:'TOO TIGHT — '+fmt(g)+'" gap, '+fmt(c-g)+'" short of target'};
+  return {key:'ok',color:'var(--ok)',text:'OK — '+fmt(g)+'" gap ('+fmt(g-c)+'" over target)'};
+}
+function boardFill(m){
+  const g=m.gapSide,c=m.clr;
+  if (g < -0.0005 || Math.abs(g)<=0.0005) return '#ff5d5d';
+  if (g < c) return '#ffb454';
+  return '#3ecf8e';
+}
+
+// ---- hexagon vertices (corners) ----
+function hexCorners(circumR, rot){
+  const pts=[];
+  for(let k=0;k<6;k++){
+    const a = rot + k*Math.PI/3;
+    pts.push([circumR*Math.cos(a), circumR*Math.sin(a)]);
+  }
+  return pts;
+}
+
+// ================= PLAN VIEW =================
+function drawPlan(m){
+  const cv=$('plan'), ctx=cv.getContext('2d');
+  const W=cv.width, H=cv.height;
+  ctx.clearRect(0,0,W,H);
+
+  const rot = $('tRot').checked ? Math.PI/6 : 0;
+  const RcOut = m.aOut / COS30;
+  const fitR = Math.max(RcOut, m.Router) * 1.12;
+  const s = Math.min(W,H)/(2*fitR);
+  const cx=W/2, cy=H/2;
+  const X = x => cx + x*s;
+  const Y = y => cy - y*s;
+
+  // grid
+  if ($('tGrid').checked){
+    ctx.strokeStyle='#1b2530'; ctx.lineWidth=1;
+    const step=6;
+    for(let g=-Math.ceil(fitR/step)*step; g<=fitR; g+=step){
+      ctx.beginPath();ctx.moveTo(X(g),0);ctx.lineTo(X(g),H);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(0,Y(g));ctx.lineTo(W,Y(g));ctx.stroke();
+    }
+  }
+
+  // lip ring (annulus) + glass
+  if ($('tLip').checked && m.lip>0){
+    ctx.beginPath();
+    ctx.arc(cx,cy,m.Router*s,0,7);
+    ctx.arc(cx,cy,m.Rglass*s,0,7,true);
+    ctx.fillStyle='#3a4658'; ctx.fill('evenodd');
+  }
+  // glass disc
+  if ($('tGlass').checked){
+    ctx.beginPath();ctx.arc(cx,cy,m.Rglass*s,0,7);
+    ctx.fillStyle='rgba(43,108,176,.45)';ctx.fill();
+    ctx.strokeStyle='#2b6cb0';ctx.lineWidth=1.5;ctx.stroke();
+  }
+  // outer dome circle (lip edge) — the touch boundary
+  ctx.beginPath();ctx.arc(cx,cy,m.Router*s,0,7);
+  ctx.strokeStyle='#5aa0ff';ctx.lineWidth=2;ctx.stroke();
+
+  // hexagon boards
+  const inC  = hexCorners(m.aIn/COS30, rot);
+  const outC = hexCorners(m.aOut/COS30, rot);
+  const fill = boardFill(m);
+  for(let k=0;k<6;k++){
+    const k2=(k+1)%6;
+    ctx.beginPath();
+    ctx.moveTo(X(inC[k][0]),  Y(inC[k][1]));
+    ctx.lineTo(X(inC[k2][0]), Y(inC[k2][1]));
+    ctx.lineTo(X(outC[k2][0]),Y(outC[k2][1]));
+    ctx.lineTo(X(outC[k][0]), Y(outC[k][1]));
+    ctx.closePath();
+    ctx.fillStyle='rgba(138,109,59,.55)';ctx.fill();
+    ctx.strokeStyle=fill;ctx.lineWidth=2.5;ctx.stroke();
+  }
+
+  // dimensions / gap markers
+  if ($('tDims').checked){
+    // side gap: along apothem direction of side 0 (between corner0 & corner1)
+    const midA = rot + Math.PI/6; // first side midpoint angle
+    const gx=Math.cos(midA), gy=Math.sin(midA);
+    ctx.strokeStyle = m.gapSide<m.clr ? (m.gapSide<=0?'#ff5d5d':'#ffb454') : '#3ecf8e';
+    ctx.lineWidth=2.5;
+    ctx.beginPath();
+    ctx.moveTo(X(m.Router*gx), Y(m.Router*gy));
+    ctx.lineTo(X(m.aIn*gx),    Y(m.aIn*gy));
+    ctx.stroke();
+    // label
+    const lx=(m.Router+m.gapSide/2)*gx, ly=(m.Router+m.gapSide/2)*gy;
+    label(ctx, X(lx)+8, Y(ly), 'side gap '+fmt(m.gapSide)+'"', '#e6edf3');
+
+    // corner gap
+    if ($('tCorner').checked){
+      const cornA = rot; // first corner
+      const cgx=Math.cos(cornA), cgy=Math.sin(cornA);
+      ctx.strokeStyle='#6b7886';ctx.lineWidth=1.5;ctx.setLineDash([4,4]);
+      ctx.beginPath();
+      ctx.moveTo(X(m.Router*cgx),Y(m.Router*cgy));
+      ctx.lineTo(X(m.rCircIn*cgx),Y(m.rCircIn*cgy));
+      ctx.stroke();ctx.setLineDash([]);
+      label(ctx, X(m.rCircIn*cgx)+6, Y(m.rCircIn*cgy), 'corner gap '+fmt(m.gapCorner)+'"', '#9aa6b4');
+    }
+
+    // diameter line of dome
+    ctx.strokeStyle='#3a526e';ctx.lineWidth=1;ctx.setLineDash([6,5]);
+    ctx.beginPath();ctx.moveTo(X(-m.Router),Y(0));ctx.lineTo(X(m.Router),Y(0));ctx.stroke();ctx.setLineDash([]);
+    label(ctx, cx-30, Y(0)-6, 'Ø '+fmt(m.dia)+'"', '#6b7886');
+  }
+}
+
+function label(ctx,x,y,txt,color){
+  ctx.font='12px -apple-system,Segoe UI,Roboto,sans-serif';
+  const w=ctx.measureText(txt).width;
+  ctx.fillStyle='rgba(10,14,19,.78)';
+  ctx.fillRect(x-3,y-12,w+6,16);
+  ctx.fillStyle=color;ctx.fillText(txt,x,y);
+}
+
+// ================= ELEVATION =================
+function drawElev(m){
+  const wrap=$('elevWrap');
+  if(!$('tElev').checked){wrap.style.display='none';return;}
+  wrap.style.display='';
+  const cv=$('elev'), ctx=cv.getContext('2d');
+  const W=cv.width,H=cv.height; ctx.clearRect(0,0,W,H);
+
+  const halfW = Math.max(m.aOut, m.Router)*1.1;
+  const topY  = Math.max(m.domeH, m.frameH)*1.25 + 2;
+  const sx = (W-60)/(2*halfW);
+  const sy = (H-50)/topY;
+  const s = Math.min(sx,sy);
+  const cx=W/2, baseY=H-30;
+  const X=x=>cx+x*s, Y=y=>baseY-y*s;
+
+  // ground
+  ctx.strokeStyle='#2a3441';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(20,baseY);ctx.lineTo(W-20,baseY);ctx.stroke();
+
+  // dome cap (spherical) from -Rglass..Rglass
+  if(m.domeH>0 && m.Rglass>0){
+    const Rs=(m.Rglass*m.Rglass+m.domeH*m.domeH)/(2*m.domeH);
+    const off=Rs-m.domeH;
+    ctx.beginPath();
+    let first=true;
+    for(let x=-m.Rglass;x<=m.Rglass+1e-6;x+=m.Rglass/120){
+      const xx=Math.min(Math.max(x,-m.Rglass),m.Rglass);
+      const y=Math.sqrt(Math.max(0,Rs*Rs-xx*xx))-off;
+      if(first){ctx.moveTo(X(xx),Y(y));first=false;}else ctx.lineTo(X(xx),Y(y));
+    }
+    ctx.lineTo(X(m.Rglass),Y(0));ctx.lineTo(X(-m.Rglass),Y(0));ctx.closePath();
+    ctx.fillStyle='rgba(43,108,176,.30)';ctx.fill();
+    ctx.strokeStyle='#2b6cb0';ctx.lineWidth=2;ctx.stroke();
+  }
+  // lip flange
+  if(m.lip>0){
+    ctx.fillStyle='#3a4658';
+    ctx.fillRect(X(m.Rglass),Y(0)-1,(m.Router-m.Rglass)*s,3);
+    ctx.fillRect(X(-m.Router),Y(0)-1,(m.Router-m.Rglass)*s,3);
+  }
+
+  // frame cross-sections (both sides): radial from aIn..aOut, height frameH
+  const fill=boardFill(m);
+  [1,-1].forEach(sign=>{
+    const x0 = sign>0 ? m.aIn : -m.aOut;
+    ctx.fillStyle='rgba(138,109,59,.6)';
+    ctx.fillRect(X(x0),Y(m.frameH),m.w*s,m.frameH*s);
+    ctx.strokeStyle=fill;ctx.lineWidth=2;
+    ctx.strokeRect(X(x0),Y(m.frameH),m.w*s,m.frameH*s);
+  });
+
+  // gap markers from Router to aIn on the right
+  ctx.strokeStyle = m.gapSide<m.clr?(m.gapSide<=0?'#ff5d5d':'#ffb454'):'#3ecf8e';
+  ctx.lineWidth=2.5;
+  ctx.beginPath();ctx.moveTo(X(m.Router),Y(0.1));ctx.lineTo(X(m.aIn),Y(0.1));ctx.stroke();
+  label(ctx, X(m.Router)+4, Y(m.frameH)-6, 'gap '+fmt(m.gapSide)+'"', '#e6edf3');
+  label(ctx, X(0)-20, Y(m.domeH)-6, fmt(m.domeH)+'" tall', '#6b7886');
+}
+
+// ================= READOUT + CUTS =================
+function drawReadout(m){
+  const st=classify(m);
+  $('dot').style.background=st.color;
+  $('statusText').textContent=st.text;
+  $('statusText').style.color=st.color;
+
+  $('readout').innerHTML = [
+    ['Side gap (governing)', fmt(m.gapSide)+'"'],
+    ['Corner gap',           fmt(m.gapCorner)+'"'],
+    ['Inner flat-to-flat',   fmt(m.ff)+'"'],
+    ['Outer flat-to-flat',   fmt(2*m.aOut)+'"'],
+    ['Inner apothem',        fmt(m.aIn)+'"'],
+    ['Dome radius (lip)',    fmt(m.Router)+'"'],
+  ].map(([k,v])=>`<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+
+  // cut list
+  const stockNote = (96/m.sOut>=2)?'Two pieces fit on a 96" board ('+fmt(6/2,0)+' boards of 8\').':'';
+  $('cuts').innerHTML =
+    '<tr><th>Qty</th><th>Long point (outer)</th><th>Short point (inner)</th><th>Face width</th><th>Miter / end</th></tr>'+
+    `<tr><td>6</td><td>${fmt(m.sOut)}"</td><td>${fmt(m.sIn)}"</td><td>${fmt(m.w)}"</td><td>30°</td></tr>`;
+  $('cutNote').textContent =
+    `Each board is a trapezoid: outer edge ${fmt(m.sOut)}", inner edge ${fmt(m.sIn)}", both ends cut at a 30° miter (120° interior corners). `+
+    `Frame height ${fmt(m.frameH)}". Total board length ≈ ${fmt(6*m.sOut)}" (long-point). ${stockNote}`;
+}
+
+// ================= MAIN =================
+function render(){
+  const m=readModel();
+  // mirror small value labels
+  $('v_dia').textContent=fmt(m.dia)+'"';
+  $('v_lip').textContent=fmt(m.lip)+'"';
+  $('v_h').textContent=fmt(m.domeH)+'"';
+  $('v_bw').textContent=fmt(m.bw)+'"';
+  $('v_bt').textContent=fmt(m.bt)+'"';
+  $('v_ff').textContent=fmt(m.ff)+'"';
+  $('v_cl').textContent=fmt(m.clr)+'"';
+  drawPlan(m);
+  drawElev(m);
+  drawReadout(m);
+}
+
+// sync slider <-> number for flat-to-flat
+function syncFF(from){
+  if(from==='range'){ $('ffn').value=$('ff').value; }
+  else { $('ff').value=$('ffn').value; }
+  render();
+}
+$('ff').addEventListener('input',()=>syncFF('range'));
+$('ffn').addEventListener('input',()=>syncFF('number'));
+
+// auto-fit & touch buttons
+$('fit').addEventListener('click',()=>{
+  const m=readModel();
+  const target=2*(m.Router+m.clr);
+  $('ffn').value=fmt(target,4); $('ff').value=target; render();
+});
+$('touchBtn').addEventListener('click',()=>{
+  const m=readModel();
+  const target=2*m.Router;
+  $('ffn').value=fmt(target,4); $('ff').value=target; render();
+});
+
+// wire everything else
+['dia','lip','domeH','bw','bt','clr','onEdge',
+ 'tGlass','tLip','tDims','tCorner','tGrid','tElev','tRot']
+ .forEach(id=>$(id).addEventListener('input',render));
+
+render();
+</script>
+</body>
+</html>

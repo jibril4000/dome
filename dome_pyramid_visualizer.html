@@ -1,0 +1,1125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glass Dome &amp; Hexagon Pyramid — 3D Visualizer</title>
+<style>
+  :root{
+    --bg:#0f1419; --panel:#161c24; --panel2:#1d2530; --line:#2a3441;
+    --text:#e6edf3; --muted:#8b97a7; --accent:#4aa3ff;
+    --ok:#3ecf8e; --warn:#ffb454; --bad:#ff5d5d; --touch:#ff8c42;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);color:var(--text);font-size:14px;line-height:1.45;overflow:hidden}
+  .wrap{display:flex;height:100vh}
+  .controls{width:340px;flex:0 0 340px;background:var(--panel);border-right:1px solid var(--line);
+    padding:16px;overflow-y:auto}
+  .stage{flex:1;position:relative}
+  #view{position:absolute;inset:0}
+  #view canvas{display:block}
+  h1{font-size:17px;margin:0 0 4px}
+  h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);
+    margin:18px 0 8px;border-bottom:1px solid var(--line);padding-bottom:5px}
+  .sub{color:var(--muted);font-size:12px;margin:0 0 10px}
+  .field{margin-bottom:11px}
+  .field label{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px}
+  .field label span.val{color:var(--accent);font-variant-numeric:tabular-nums;font-weight:600}
+  input[type=range]{width:100%;accent-color:var(--accent);margin:2px 0}
+  input[type=number]{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--text);
+    border-radius:6px;padding:6px 8px;font-size:13px;font-variant-numeric:tabular-nums}
+  .toggle{display:flex;align-items:center;gap:8px;margin:6px 0;cursor:pointer;user-select:none}
+  .toggle input{accent-color:var(--accent);width:16px;height:16px}
+  button{background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:7px;
+    padding:8px 10px;cursor:pointer;font-size:13px;transition:.12s}
+  button:hover{background:#283341;border-color:var(--accent)}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#04121f;font-weight:600}
+  .btnrow{display:flex;gap:8px;margin-top:6px}
+  .btnrow>*{flex:1}
+  .hint{font-size:11px;color:var(--muted);margin-top:3px}
+  .tabs{display:flex;gap:6px;margin:10px 0 4px}
+  .tabs button{flex:1;padding:9px 8px;border-radius:8px 8px 0 0;font-weight:600;
+    background:var(--panel2);border:1px solid var(--line);border-bottom:none;color:var(--muted)}
+  .tabs button.active{background:var(--accent);color:#04121f;border-color:var(--accent)}
+  .tabpane{display:none}
+  .tabpane.active{display:block}
+  /* overlay panels on the 3D stage */
+  .overlay{position:absolute;z-index:5;pointer-events:none}
+  .status{top:14px;left:14px;right:14px;padding:12px 14px;border-radius:10px;
+    border:1px solid var(--line);background:rgba(15,20,25,.86);backdrop-filter:blur(6px)}
+  .status .big{font-size:18px;font-weight:700;display:flex;align-items:center;gap:10px}
+  .dot{width:14px;height:14px;border-radius:50%;display:inline-block}
+  .readout{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-top:10px}
+  .stat{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:7px 10px}
+  .stat .k{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  .stat .v{font-size:16px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:2px}
+  .cuts{bottom:14px;left:14px;right:14px;padding:10px 14px;border-radius:10px;
+    border:1px solid var(--line);background:rgba(15,20,25,.86);backdrop-filter:blur(6px);
+    pointer-events:auto;max-height:36vh;overflow:auto}
+  table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+  th,td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-weight:500;font-size:10px;text-transform:uppercase;letter-spacing:.04em}
+  .legend{display:flex;flex-wrap:wrap;gap:12px;font-size:11px;color:var(--muted);margin-top:8px}
+  .legend span{display:flex;align-items:center;gap:6px}
+  .sw{width:12px;height:12px;border-radius:3px;display:inline-block}
+  details summary{cursor:pointer;color:var(--accent);font-size:12px}
+  .blueprint{top:118px;right:14px;width:312px;padding:12px 14px;border-radius:10px;border:1px solid var(--line);
+    background:rgba(15,20,25,.93);backdrop-filter:blur(6px);pointer-events:auto;display:none}
+  .blueprint.show{display:block}
+  .bphead{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .bphead span{font-weight:700;font-size:14px}
+  .bphead button{padding:2px 9px;line-height:1}
+  #bpCanvas{width:100%;height:auto;background:#0a0e13;border:1px solid var(--line);border-radius:8px;display:block}
+  #bpDims{margin-top:9px;font-size:12px}
+  #bpDims .r{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding:3px 0}
+  #bpDims .r .k{color:var(--muted)}
+  #bpDims .r .v{font-variant-numeric:tabular-nums;text-align:right}
+  .pickhint{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);z-index:5;
+    font-size:12px;color:var(--muted);background:rgba(15,20,25,.8);padding:5px 12px;border-radius:20px;
+    border:1px solid var(--line);pointer-events:none}
+  #err{position:absolute;inset:0;display:none;align-items:center;justify-content:center;
+    padding:30px;text-align:center;color:var(--warn);background:#0f1419;z-index:20}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <!-- ================= CONTROLS ================= -->
+  <div class="controls">
+    <h1>Dome &amp; Hexagon Pyramid</h1>
+    <div class="tabs">
+      <button id="tabBtn1" class="active">Design 1 · Floor base</button>
+      <button id="tabBtn2">Design 2 · Yurt shoes</button>
+    </div>
+
+    <h2>Glass Dome</h2>
+    <div class="field">
+      <label><span>Overall diameter (lip edge)</span><span class="val" id="v_dia">62.25"</span></label>
+      <input type="number" id="dia" value="62.25" step="0.125" min="1">
+    </div>
+    <div class="field">
+      <label><span>Lip width</span><span class="val" id="v_lip">3.75"</span></label>
+      <input type="number" id="lip" value="3.75" step="0.125" min="0">
+    </div>
+    <div class="field">
+      <label><span>Dome height (center)</span><span class="val" id="v_h">14"</span></label>
+      <input type="number" id="domeH" value="14" step="0.25" min="0.25">
+    </div>
+
+    <h2>Boards (2&times;4 = 3.5&quot;&times;1.5&quot;)</h2>
+    <div class="field">
+      <label><span>Board face width</span><span class="val" id="v_bw">3.5"</span></label>
+      <input type="number" id="bw" value="3.5" step="0.125" min="0.25">
+    </div>
+    <div class="field">
+      <label><span>Board thickness</span><span class="val" id="v_bt">1.5"</span></label>
+      <input type="number" id="bt" value="1.5" step="0.125" min="0.25">
+    </div>
+
+    <!-- ===== DESIGN 1 ===== -->
+    <div class="tabpane active" id="tab1ctl">
+    <p class="sub">A hexagonal pyramid (6 base boards + 6 rafters to an apex) sitting on the floor. Two clearances matter: the <b>base</b> (lip) and the <b>sloped roof</b> (dome shoulder).</p>
+    <label class="toggle"><input type="checkbox" id="onEdge"><span>Stand base boards on edge</span></label>
+
+    <h2>How It Sits</h2>
+    <div class="field">
+      <label><span>Frame drop below dome rim</span><span class="val" id="v_drop">0"</span></label>
+      <input type="range" id="drop" min="0" max="14" step="0.125" value="0">
+      <input type="number" id="dropn" value="0" step="0.125" style="margin-top:6px">
+      <div class="hint">The dome sits on the yurt roof, so the wood frame can sit lower. 0 = flush (frame base level with the dome rim); higher = frame sits lower / dome rides higher above it, which tightens the roof clearance.</div>
+    </div>
+
+    <h2>Base Hexagon</h2>
+    <div class="field">
+      <label><span>Inner flat-to-flat</span><span class="val" id="v_ff">64.25"</span></label>
+      <input type="range" id="ff" min="50" max="100" step="0.0625" value="64.25">
+      <input type="number" id="ffn" value="64.25" step="0.0625" style="margin-top:6px">
+      <div class="hint">Inside width of the base, flat-to-flat (= 2 &times; inner apothem).</div>
+    </div>
+
+    <h2>Pyramid Apex</h2>
+    <div class="field">
+      <label><span>Apex height above base</span><span class="val" id="v_ah">—</span></label>
+      <input type="range" id="ah" min="14" max="80" step="0.125" value="26">
+      <input type="number" id="ahn" value="26" step="0.125" style="margin-top:6px">
+      <div class="hint">Taller apex = steeper roof = more clearance over the dome shoulder.</div>
+    </div>
+
+    <h2>Clearance</h2>
+    <div class="field">
+      <label><span>Required clearance</span><span class="val" id="v_cl">1.00"</span></label>
+      <input type="number" id="clr" value="1" step="0.0625" min="0">
+    </div>
+    <div class="btnrow">
+      <button class="primary" id="fitBase">Fit base</button>
+      <button class="primary" id="fitApex">Fit apex</button>
+    </div>
+    <div class="btnrow">
+      <button id="fitAll">Fit both to clearance</button>
+    </div>
+    </div>
+
+    <!-- ===== DESIGN 2 ===== -->
+    <div class="tabpane" id="tab2ctl">
+    <p class="sub">6 rafters meet at an apex; a hexagon <b>tie frame</b> at 15&quot; ties them together, and angled <b>shoe</b> feet land on the sloped yurt roof. Rafters stand on edge.</p>
+
+    <h2>Yurt Roof</h2>
+    <div class="field">
+      <label><span>Roof slope (pitch)</span><span class="val" id="v_slope2">15°</span></label>
+      <input type="range" id="slope2" min="0" max="45" step="0.5" value="15">
+      <input type="number" id="slope2n" value="15" step="0.5" style="margin-top:6px">
+      <div class="hint">Angle of the yurt roof from horizontal, measured at the rim. The shoes lay flat on this slope.</div>
+    </div>
+
+    <h2>Foot Ring (feet)</h2>
+    <div class="field">
+      <label><span>Foot inner flat-to-flat</span><span class="val" id="v_ff2">64.25"</span></label>
+      <input type="range" id="ff2" min="50" max="100" step="0.0625" value="64.25">
+      <input type="number" id="ff2n" value="64.25" step="0.0625" style="margin-top:6px">
+      <div class="hint">Inside width where the rafter feet land on the yurt, flat-to-flat. The tie frame at 15" is derived flush with the rafters.</div>
+    </div>
+    <div class="field">
+      <label><span>Tie height above dome rim</span><span class="val" id="v_ring2">15"</span></label>
+      <input type="range" id="ring2" min="0" max="40" step="0.25" value="15">
+      <input type="number" id="ring2n" value="15" step="0.25" style="margin-top:6px">
+      <div class="hint">The tie frame's top sits this high above the dome rim, flush with the rafters' top edge.</div>
+    </div>
+
+    <h2>Pyramid Apex</h2>
+    <div class="field">
+      <label><span>Apex height above dome rim</span><span class="val" id="v_ah2">—</span></label>
+      <input type="range" id="ah2" min="15" max="90" step="0.125" value="30">
+      <input type="number" id="ah2n" value="30" step="0.125" style="margin-top:6px">
+      <div class="hint">Taller apex = steeper roof = more clearance over the dome shoulder.</div>
+    </div>
+
+    <h2>Shoe Feet</h2>
+    <div class="field">
+      <label><span>Shoe length (along slope)</span><span class="val" id="v_shoeL2">10"</span></label>
+      <input type="number" id="shoeL2" value="10" step="0.25" min="1">
+    </div>
+    <div class="field">
+      <label><span>Shoe width</span><span class="val" id="v_shoeW2">3.5"</span></label>
+      <input type="number" id="shoeW2" value="3.5" step="0.125" min="0.5">
+    </div>
+    <div class="field">
+      <label><span>Shoe thickness</span><span class="val" id="v_shoeT2">1.5"</span></label>
+      <input type="number" id="shoeT2" value="1.5" step="0.125" min="0.25">
+    </div>
+
+    <h2>Clearance</h2>
+    <div class="field">
+      <label><span>Required clearance</span><span class="val" id="v_cl2">1.00"</span></label>
+      <input type="number" id="clr2" value="1" step="0.0625" min="0">
+    </div>
+    <div class="btnrow">
+      <button class="primary" id="fitFeet2">Fit feet</button>
+      <button class="primary" id="fitApex2">Fit apex</button>
+    </div>
+    </div>
+
+    <h2>Display</h2>
+    <label class="toggle"><input type="checkbox" id="tGlass" checked><span>Show glass dome</span></label>
+    <label class="toggle"><input type="checkbox" id="tPanels"><span>Show roof panels (solid faces)</span></label>
+    <label class="toggle"><input type="checkbox" id="tMarkers" checked><span>Show clearance markers</span></label>
+    <label class="toggle"><input type="checkbox" id="tYurt" checked><span>Show yurt roof (Design 2)</span></label>
+    <label class="toggle"><input type="checkbox" id="tGrid" checked><span>Show 6&quot; floor grid</span></label>
+    <label class="toggle"><input type="checkbox" id="tRot"><span>Auto-rotate view</span></label>
+  </div>
+
+  <!-- ================= STAGE ================= -->
+  <div class="stage">
+    <div id="view"></div>
+    <div id="err">Could not load the 3D library (needs internet for the Three.js CDN).<br>Open this file while online, or tell me and I'll inline a copy.</div>
+
+    <div class="overlay status">
+      <div class="big"><span class="dot" id="dot"></span><span id="statusText">—</span></div>
+      <div class="readout" id="readout"></div>
+    </div>
+
+    <div class="overlay cuts">
+      <details open>
+        <summary>Cut list &amp; build numbers</summary>
+        <table id="cutTbl"></table>
+        <div class="hint" id="cutNote"></div>
+        <div class="legend">
+          <span><i class="sw" style="background:#2b6cb0"></i>Glass</span>
+          <span><i class="sw" style="background:#9c6b3f"></i>Wood</span>
+          <span><i class="sw" style="background:#3ecf8e"></i>OK</span>
+          <span><i class="sw" style="background:#ffb454"></i>Below target</span>
+          <span><i class="sw" style="background:#ff5d5d"></i>Touching</span>
+        </div>
+      </details>
+    </div>
+
+    <div class="overlay blueprint" id="bp">
+      <div class="bphead"><span id="bpTitle">Piece</span><button id="bpClose">✕</button></div>
+      <canvas id="bpCanvas" width="300" height="240"></canvas>
+      <div id="bpDims"></div>
+    </div>
+
+    <div class="pickhint" id="pickhint">Click any board for its cut blueprint</div>
+  </div>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const $ = id => document.getElementById(id);
+const COS30 = Math.cos(Math.PI/6);
+const TAN30 = Math.tan(Math.PI/6);
+const fmt = (n,d=2)=> (Math.round(n*10**d)/10**d).toFixed(d);
+const clampNum = (v,f=0)=> Number.isFinite(v)?v:f;
+
+// ---------- model + clearance math ----------
+function rhoAt(y,Rs,yc){ const a=Rs*Rs-(y-yc)*(y-yc); return a>0?Math.sqrt(a):0; }
+
+function roofGap(aIn,H,Rs,yc,domeH,yStart,rise){
+  rise=rise||0;
+  let min=Infinity, atY=yStart;
+  const L=Math.hypot(H,aIn);
+  const n=120;
+  for(let i=0;i<=n;i++){
+    const y=yStart+(domeH-yStart)*i/n;
+    const g=(H*(aIn-rhoAt(y,Rs,yc))-aIn*(y+rise))/L;   // dome point sits `rise` higher than the frame base
+    if(g<min){min=g;atY=y;}
+  }
+  return {gap:min,y:atY};
+}
+
+function readModel(){
+  const dia=clampNum(parseFloat($('dia').value));
+  const lip=clampNum(parseFloat($('lip').value));
+  const domeH=Math.max(0.25,clampNum(parseFloat($('domeH').value),0.25));
+  const bw=Math.max(0.25,clampNum(parseFloat($('bw').value),3.5));
+  const bt=Math.max(0.25,clampNum(parseFloat($('bt').value),1.5));
+  const onEdge=$('onEdge').checked;
+  const ff=clampNum(parseFloat($('ffn').value));
+  const drop=Math.max(0,clampNum(parseFloat($('dropn').value),0));
+  const H=Math.max(domeH+drop+0.1,clampNum(parseFloat($('ahn').value),26));
+  const clr=clampNum(parseFloat($('clr').value));
+
+  const Router=dia/2;
+  const Rglass=Math.max(0.1,Router-lip);
+  const w=onEdge?bt:bw;
+  const frameH=onEdge?bw:bt;
+  const aIn=ff/2, aOut=aIn+w;
+  const RcIn=aIn/COS30, RcOut=aOut/COS30;
+
+  const Rs=(Rglass*Rglass+domeH*domeH)/(2*domeH);
+  const yc=domeH-Rs;
+
+  const gapBase=aIn-Router;
+  const yStart=Math.min(frameH,domeH*0.5);
+  const roof=roofGap(aIn,H,Rs,yc,domeH,yStart,drop);
+  const gapRoof=roof.gap;
+
+  const governing=Math.min(gapBase,gapRoof);
+  const bind=gapBase<=gapRoof?'base':'roof';
+
+  const sIn=2*aIn*TAN30, sOut=2*aOut*TAN30;
+  const aTop=bt*COS30;                                   // apothem of top hexagon (side = bt)
+  const rafterLen=Math.hypot(RcOut-aTop,H-frameH);       // corner foot -> hex face (on the hip line)
+  const pitch=Math.atan2(H-frameH,RcOut-aTop)*180/Math.PI;
+
+  return {dia,lip,domeH,bw,bt,onEdge,ff,drop,H,clr,Router,Rglass,w,frameH,aIn,aOut,
+          RcIn,RcOut,Rs,yc,gapBase,gapRoof,roofY:roof.y,governing,bind,
+          sIn,sOut,aTop,rafterLen,pitch};
+}
+
+function classify(m){
+  const g=m.governing,c=m.clr;
+  if(g<-0.0005) return {color:'var(--bad)',hex:0xff5d5d,
+    text:`INTERFERENCE — wood cuts into the dome by ${fmt(-g)}" (${m.bind})`};
+  if(Math.abs(g)<=0.0005) return {color:'var(--touch)',hex:0xff8c42,
+    text:`TOUCHING — frame just contacts the dome (${m.bind})`};
+  if(g<c) return {color:'var(--warn)',hex:0xffb454,
+    text:`TOO TIGHT — ${fmt(g)}" gap at the ${m.bind}, ${fmt(c-g)}" short of target`};
+  return {color:'var(--ok)',hex:0x3ecf8e,
+    text:`OK — ${fmt(g)}" min gap (${fmt(g-c)}" over target, binds at ${m.bind})`};
+}
+
+function drawReadout(m,st){
+  $('dot').style.background=st.color;
+  $('statusText').textContent=st.text;
+  $('statusText').style.color=st.color;
+  $('readout').innerHTML=[
+    ['Base gap (lip)',fmt(m.gapBase)+'"'],
+    ['Roof gap (shoulder)',fmt(m.gapRoof)+'"'],
+    ['Roof binds at',fmt(m.roofY)+'" high'],
+    ['Apex height',fmt(m.H)+'"'],
+    ['Frame drop',fmt(m.drop)+'"'],
+    ['Roof pitch',fmt(m.pitch,1)+'°'],
+    ['Inner flat-to-flat',fmt(m.ff)+'"'],
+  ].map(([k,v])=>`<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+
+  $('cutTbl').innerHTML=
+    '<tr><th>Part</th><th>Qty</th><th>Length</th><th>Section</th><th>Cut</th></tr>'+
+    `<tr><td>Base board</td><td>6</td><td>${fmt(m.sOut)}" long / ${fmt(m.sIn)}" short</td><td>${fmt(m.w)}"&times;${fmt(m.frameH)}"</td><td>30° miter both ends</td></tr>`+
+    `<tr><td>Rafter (on edge)</td><td>6</td><td>${fmt(m.rafterLen)}" (long point)</td><td>${fmt(m.bw)}"&times;${fmt(m.bt)}"</td><td>${fmt(m.pitch,1)}° seat + plumb, single bevel</td></tr>`+
+    `<tr><td>King post (hex)</td><td>1</td><td>cut to suit</td><td>${fmt(2*m.aTop)}" across flats</td><td>6 faces, ${fmt(m.bt)}" sides</td></tr>`;
+  $('cutNote').textContent=
+    `Base: 6 mitered trapezoids form the hexagon (outer flat-to-flat ${fmt(2*m.aOut)}"). `+
+    `Rafters: 6 identical 2×4s standing on edge (${fmt(m.bw)}"×${fmt(m.bt)}"), each in its own vertical plane — `+
+    `single-bevel seat cut at the foot (sits flush on the base) and plumb cut at the top, both at ${fmt(m.pitch,1)}°. `+
+    `All 6 butt onto a central hexagonal king post (${fmt(m.bt)}" sides, one face per rafter) and meet flush. `+
+    `Total board run ≈ ${fmt(6*m.sOut+6*m.rafterLen)}".`;
+}
+
+function syncLabels(m){
+  $('v_dia').textContent=fmt(m.dia)+'"';
+  $('v_lip').textContent=fmt(m.lip)+'"';
+  $('v_h').textContent=fmt(m.domeH)+'"';
+  $('v_bw').textContent=fmt(m.bw)+'"';
+  $('v_bt').textContent=fmt(m.bt)+'"';
+  $('v_ff').textContent=fmt(m.ff)+'"';
+  $('v_drop').textContent=fmt(m.drop)+'"';
+  $('v_ah').textContent=fmt(m.H)+'"';
+  $('v_cl').textContent=fmt(m.clr)+'"';
+}
+
+// ================= 3D SCENE =================
+let renderer,scene,camera,controls,model;
+let pickables=[], selOutline=null, selKey=null;
+let activeTab=1;
+const raycaster=new THREE.Raycaster();
+
+function initScene(){
+  const host=$('view');
+  renderer=new THREE.WebGLRenderer({antialias:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.setSize(host.clientWidth,host.clientHeight);
+  host.appendChild(renderer.domElement);
+
+  scene=new THREE.Scene();
+  scene.background=new THREE.Color(0x0a0e13);
+
+  camera=new THREE.PerspectiveCamera(45,host.clientWidth/host.clientHeight,0.5,2000);
+  camera.position.set(78,58,96);
+
+  controls=new OrbitControls(camera,renderer.domElement);
+  controls.enableDamping=true;
+  controls.target.set(0,12,0);
+
+  scene.add(new THREE.HemisphereLight(0xbcd6ff,0x202830,0.9));
+  const dir=new THREE.DirectionalLight(0xffffff,1.05);
+  dir.position.set(60,90,40); scene.add(dir);
+  const dir2=new THREE.DirectionalLight(0xaaccff,0.4);
+  dir2.position.set(-50,30,-60); scene.add(dir2);
+
+  model=new THREE.Group(); scene.add(model);
+
+  let downXY=null;
+  renderer.domElement.addEventListener('pointerdown',e=>{ downXY=[e.clientX,e.clientY]; });
+  renderer.domElement.addEventListener('pointerup',e=>{
+    if(!downXY) return;
+    const moved=Math.hypot(e.clientX-downXY[0],e.clientY-downXY[1]); downXY=null;
+    if(moved>5) return;                                            // a drag, not a click
+    const r=renderer.domElement.getBoundingClientRect();
+    const mouse=new THREE.Vector2(((e.clientX-r.left)/r.width)*2-1,-((e.clientY-r.top)/r.height)*2+1);
+    raycaster.setFromCamera(mouse,camera);
+    const hits=raycaster.intersectObjects(pickables,false);
+    if(hits.length) selectPiece(hits[0].object);
+  });
+
+  addEventListener('resize',onResize);
+  animate();
+}
+function onResize(){
+  const host=$('view');
+  camera.aspect=host.clientWidth/host.clientHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(host.clientWidth,host.clientHeight);
+}
+function animate(){
+  requestAnimationFrame(animate);
+  controls.autoRotate=$('tRot').checked;
+  controls.autoRotateSpeed=1.1;
+  controls.update();
+  renderer.render(scene,camera);
+}
+
+function disposeGroup(g){
+  g.traverse(o=>{ if(o.geometry)o.geometry.dispose();
+    if(o.material){(Array.isArray(o.material)?o.material:[o.material]).forEach(mm=>mm.dispose());} });
+  g.clear();
+}
+
+function corners(circumR,rot){
+  const p=[];
+  for(let k=0;k<6;k++){ const a=rot+Math.PI/6+k*Math.PI/3; p.push([circumR*Math.cos(a),circumR*Math.sin(a)]); }
+  return p;
+}
+
+function basePrism(inA,inB,outB,outA,y0,y1,mat){
+  const P=[[inA[0],y0,inA[1]],[inB[0],y0,inB[1]],[outB[0],y0,outB[1]],[outA[0],y0,outA[1]],
+           [inA[0],y1,inA[1]],[inB[0],y1,inB[1]],[outB[0],y1,outB[1]],[outA[0],y1,outA[1]]];
+  const idx=[0,2,1, 0,3,2, 4,5,6, 4,6,7, 0,1,5, 0,5,4, 2,6,7, 2,7,3, 1,2,6, 1,6,5, 3,0,4, 3,4,7];
+  const g=new THREE.BufferGeometry();
+  const pos=new Float32Array(P.flat());
+  g.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  g.setIndex(idx); g.computeVertexNormals();
+  return new THREE.Mesh(g,mat);
+}
+
+// general 6-faced prism from a bottom loop and a top loop (4 Vector3 each, same order)
+function prism8(b,t,mat){
+  const P=[b[0],b[1],b[2],b[3],t[0],t[1],t[2],t[3]];
+  const pos=new Float32Array(P.flatMap(v=>[v.x,v.y,v.z]));
+  const idx=[0,2,1, 0,3,2, 4,5,6, 4,6,7, 0,1,5, 0,5,4, 1,2,6, 1,6,5, 2,3,7, 2,7,3, 3,0,4, 3,4,7];
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  g.setIndex(idx); g.computeVertexNormals();
+  return new THREE.Mesh(g,mat);
+}
+
+function makeLabel(text,hex){
+  const pad=8, fontPx=46;
+  const c=document.createElement('canvas'); const ctx=c.getContext('2d');
+  ctx.font=`bold ${fontPx}px -apple-system,Segoe UI,Roboto,sans-serif`;
+  const w=Math.ceil(ctx.measureText(text).width)+pad*2;
+  c.width=w; c.height=fontPx+pad*2;
+  ctx.font=`bold ${fontPx}px -apple-system,Segoe UI,Roboto,sans-serif`;
+  ctx.fillStyle='rgba(10,14,19,.82)'; roundRect(ctx,0,0,c.width,c.height,10); ctx.fill();
+  ctx.fillStyle='#'+hex.toString(16).padStart(6,'0');
+  ctx.textBaseline='middle'; ctx.fillText(text,pad,c.height/2);
+  const tex=new THREE.CanvasTexture(c); tex.anisotropy=4;
+  const spr=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,depthTest:false,transparent:true}));
+  const scale=0.09; spr.scale.set(c.width*scale,c.height*scale,1);
+  spr.renderOrder=10;
+  return spr;
+}
+function roundRect(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+
+function build(m,st){
+  disposeGroup(model);
+  clearOutline();
+  pickables=[];
+
+  if($('tGrid').checked){
+    const grid=new THREE.GridHelper(144,24,0x2a3a4a,0x1a2430);
+    grid.position.y=0; model.add(grid);
+  }
+
+  if($('tGlass').checked){
+    const pts=[];
+    const N=48;
+    for(let i=0;i<=N;i++){ const y=m.domeH*i/N; pts.push(new THREE.Vector2(rhoAt(y,m.Rs,m.yc),y)); }
+    const domeGeo=new THREE.LatheGeometry(pts,72);
+    const glassMat=new THREE.MeshPhysicalMaterial({color:0x9fd0ff,transparent:true,opacity:0.22,
+      roughness:0.06,metalness:0,side:THREE.DoubleSide,depthWrite:false});
+    const dome=new THREE.Mesh(domeGeo,glassMat); dome.renderOrder=3; dome.position.y=m.drop; model.add(dome);
+    if(m.lip>0){
+      const lp=[new THREE.Vector2(m.Rglass,0),new THREE.Vector2(m.Router,0),
+                new THREE.Vector2(m.Router,0.4),new THREE.Vector2(m.Rglass,0.4)];
+      const lipGeo=new THREE.LatheGeometry(lp,72);
+      const lipMat=new THREE.MeshPhysicalMaterial({color:0x8fbfe6,transparent:true,opacity:0.5,
+        roughness:0.1,side:THREE.DoubleSide,depthWrite:false});
+      const lipM=new THREE.Mesh(lipGeo,lipMat); lipM.renderOrder=2; lipM.position.y=m.drop; model.add(lipM);
+    }
+  }
+
+  const woodOk=0x9c6b3f;
+  const woodHex=(st.hex===0x3ecf8e)?woodOk:st.hex;
+  const woodMat=new THREE.MeshStandardMaterial({color:woodHex,roughness:0.85,metalness:0.02,side:THREE.DoubleSide});
+  const edgeMat=new THREE.LineBasicMaterial({color:st.hex});
+
+  const inC=corners(m.aIn/COS30,0), outC=corners(m.aOut/COS30,0);
+  const Vf=c=>new THREE.Vector3(c[0],m.frameH,c[1]);
+  for(let k=0;k<6;k++){ const k2=(k+1)%6;
+    const board=basePrism(inC[k],inC[k2],outC[k2],outC[k],0,m.frameH,woodMat);
+    board.userData={pick:true,key:'base'+k,piece:{
+      kind:'base', name:`Base board ${k+1} of 6`,
+      quad:[Vf(outC[k2]),Vf(outC[k]),Vf(inC[k]),Vf(inC[k2])],
+      axisEdge:0, cutEdges:[1,3], cutNames:['Miter, end A','Miter, end B'],
+      longEdges:[[0,'Outer edge (long)'],[2,'Inner edge (short)']],
+      section:[['Board width',m.w],['Thickness',m.frameH]], extra:[] }};
+    pickables.push(board); model.add(board);
+    model.add(new THREE.LineSegments(new THREE.EdgesGeometry(board.geometry),edgeMat));
+  }
+  // rafters: 6 identical 2x4s standing ON EDGE, each in its own vertical plane,
+  // foot seat-cut flush on the base, top plumb-cut flush against a central hex post.
+  const aTop=m.aTop;
+  let yTopMin=Infinity, yTopMax=-Infinity;
+  for(let k=0;k<6;k++){
+    const ang=Math.PI/6+k*Math.PI/3;                              // corner azimuth
+    const rr=new THREE.Vector3(Math.cos(ang),0,Math.sin(ang));    // radial
+    const tt=new THREE.Vector3(-Math.sin(ang),0,Math.cos(ang));   // tangential (1.5" thickness dir)
+    const footC=new THREE.Vector3(m.RcOut*Math.cos(ang),m.frameH,m.RcOut*Math.sin(ang));
+    const topC =new THREE.Vector3(aTop*Math.cos(ang),m.H,aTop*Math.sin(ang));
+    const d=new THREE.Vector3().subVectors(topC,footC).normalize();
+    let nn=new THREE.Vector3().crossVectors(tt,d).normalize();    // 3.5" depth dir, in the vertical plane
+    if(nn.y<0) nn.multiplyScalar(-1);
+    const denom=d.dot(rr);
+    const loop=[[1,1],[1,-1],[-1,-1],[-1,1]];
+    const B=[],T=[];
+    for(const [sn,st] of loop){
+      const ci=new THREE.Vector3().addScaledVector(nn,sn*m.bw/2).addScaledVector(tt,st*m.bt/2);
+      const A=new THREE.Vector3().addVectors(footC,ci);
+      const sB=(m.frameH-A.y)/d.y;                                // seat cut: bottom face on y = frameH
+      B.push(A.clone().addScaledVector(d,sB));
+      const sT=(aTop-A.dot(rr))/denom;                           // plumb cut: top face on radius = aTop
+      const Tp=A.clone().addScaledVector(d,sT);
+      T.push(Tp); yTopMin=Math.min(yTopMin,Tp.y); yTopMax=Math.max(yTopMax,Tp.y);
+    }
+    const raf=prism8(B,T,woodMat);
+    raf.userData={pick:true,key:'rafter'+k,piece:{
+      kind:'rafter', name:`Rafter ${k+1} of 6`,
+      quad:[B[3],T[3],T[0],B[0]], sortLong:true,
+      axisEdge:0, cutEdges:[1,3], cutNames:['Plumb cut (top)','Seat cut (foot)'],
+      longEdges:[[0,''],[2,'']],
+      section:[['Depth (face)',m.bw],['Thickness',m.bt]],
+      extra:[['Roof pitch',m.pitch]] }};
+    pickables.push(raf); model.add(raf);
+    model.add(new THREE.LineSegments(new THREE.EdgesGeometry(raf.geometry),edgeMat));
+  }
+  // central hexagonal king post — side = board thickness, one flat face per rafter
+  const postH=(yTopMax-yTopMin)+0.8, postY=(yTopMin+yTopMax)/2;
+  const post=new THREE.Mesh(new THREE.CylinderGeometry(m.bt,m.bt,postH,6),woodMat);
+  post.position.set(0,postY,0);
+  post.userData={pick:true,key:'post',piece:{
+    kind:'post', name:'Hexagonal king post',
+    hex:{flats:2*m.aTop, side:m.bt, height:postH},
+    dims:[['Across flats',2*m.aTop],['Side length',m.bt],
+          ['Height',postH],['Faces',6]] }};
+  pickables.push(post); model.add(post);
+  const postEdges=new THREE.LineSegments(new THREE.EdgesGeometry(post.geometry),edgeMat);
+  postEdges.position.copy(post.position); model.add(postEdges);
+
+  if($('tPanels').checked){
+    const panMat=new THREE.MeshStandardMaterial({color:woodHex,transparent:true,opacity:0.28,
+      side:THREE.DoubleSide,roughness:0.9});
+    for(let k=0;k<6;k++){ const k2=(k+1)%6;
+      const g=new THREE.BufferGeometry();
+      g.setAttribute('position',new THREE.BufferAttribute(new Float32Array([
+        inC[k][0],m.frameH,inC[k][1], inC[k2][0],m.frameH,inC[k2][1], 0,m.H,0]),3));
+      g.computeVertexNormals();
+      model.add(new THREE.Mesh(g,panMat));
+    }
+  }
+
+  if($('tMarkers').checked){
+    const mk=st.hex;
+    const phi=Math.PI/6;
+    const a=new THREE.Vector3(m.Router*Math.cos(phi),m.drop+0.2,m.Router*Math.sin(phi));
+    const b=new THREE.Vector3(m.aIn*Math.cos(phi),m.drop+0.2,m.aIn*Math.sin(phi));
+    model.add(line(a,b,mk));
+    const lblB=makeLabel(`base ${fmt(m.gapBase)}"`,mk);
+    lblB.position.copy(a.clone().lerp(b,0.5)).add(new THREE.Vector3(0,3,0)); model.add(lblB);
+
+    const phi2=Math.PI/6+Math.PI/3;
+    const y=m.roofY, r=rhoAt(y,m.Rs,m.yc);
+    const P=new THREE.Vector3(r*Math.cos(phi2),y+m.drop,r*Math.sin(phi2));
+    const L=Math.hypot(m.H,m.aIn);
+    const nOut=new THREE.Vector3(m.H*Math.cos(phi2),m.aIn,m.H*Math.sin(phi2)).multiplyScalar(1/L);
+    const Q=P.clone().addScaledVector(nOut,m.gapRoof);
+    model.add(line(P,Q,mk));
+    const lblR=makeLabel(`roof ${fmt(m.gapRoof)}"`,mk);
+    lblR.position.copy(P.clone().lerp(Q,0.5)).add(new THREE.Vector3(0,2,0)); model.add(lblR);
+  }
+
+  if(selKey){
+    const mh=pickables.find(o=>o.userData.key===selKey);
+    if(mh) selectPiece(mh); else clearSelection();
+  }
+}
+
+// ---------- click-to-select + cut blueprint ----------
+function clearOutline(){
+  if(selOutline){ scene.remove(selOutline); selOutline.geometry.dispose();
+    selOutline.material.dispose(); selOutline=null; }
+}
+function clearSelection(){ clearOutline(); selKey=null; $('bp').classList.remove('show'); }
+
+function selectPiece(mesh){
+  clearOutline();
+  selOutline=new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry),
+    new THREE.LineBasicMaterial({color:0x6cf0ff,depthTest:false}));
+  selOutline.renderOrder=20;
+  selOutline.position.copy(mesh.position);
+  selOutline.quaternion.copy(mesh.quaternion);
+  selOutline.scale.copy(mesh.scale);
+  scene.add(selOutline);
+  selKey=mesh.userData.key;
+  const p=mesh.userData.piece;
+  $('bpTitle').textContent=p.name;
+  $('bp').classList.add('show');
+  const an=(p.kind==='post')?null:analyze(p);
+  drawBP(p,an); fillDims(p,an);
+}
+
+function to2D(quad){
+  const o=quad[0];
+  const e1=new THREE.Vector3().subVectors(quad[1],o);
+  const e2=new THREE.Vector3().subVectors(quad[2],o);
+  const n=new THREE.Vector3().crossVectors(e1,e2);
+  const u=e1.clone().normalize();
+  const v=new THREE.Vector3().crossVectors(n,e1).normalize();
+  return quad.map(p=>{ const d=new THREE.Vector3().subVectors(p,o); return {x:d.dot(u),y:d.dot(v)}; });
+}
+function analyze(piece){
+  const pts=to2D(piece.quad), edges=[];
+  for(let i=0;i<4;i++){ const a=pts[i],b=pts[(i+1)%4];
+    edges.push({len:Math.hypot(b.x-a.x,b.y-a.y),dir:Math.atan2(b.y-a.y,b.x-a.x)}); }
+  const axis=edges[piece.axisEdge].dir;
+  const cuts=piece.cutEdges.map((ei,i)=>{
+    let rel=Math.abs(edges[ei].dir-axis)*180/Math.PI; rel%=360; if(rel>180)rel=360-rel; if(rel>90)rel=180-rel;
+    return {ei,toAxis:rel,fromSquare:Math.abs(90-rel),name:piece.cutNames[i]};
+  });
+  return {pts,edges,cuts};
+}
+function drawBP(piece,an){
+  const cv=$('bpCanvas'), ctx=cv.getContext('2d');
+  ctx.clearRect(0,0,cv.width,cv.height);
+  if(piece.kind==='post'){ drawHexBP(ctx,cv,piece); return; }
+  const xs=an.pts.map(p=>p.x), ys=an.pts.map(p=>p.y);
+  const minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys);
+  const pad=62, sc=Math.min((cv.width-pad*2)/((maxX-minX)||1),(cv.height-pad*2)/((maxY-minY)||1));
+  const ox=(cv.width-(maxX-minX)*sc)/2, oy=(cv.height-(maxY-minY)*sc)/2;
+  const TX=p=>ox+(p.x-minX)*sc, TY=p=>cv.height-(oy+(p.y-minY)*sc);
+  // outline
+  ctx.beginPath();
+  an.pts.forEach((p,i)=>{ const x=TX(p),y=TY(p); i?ctx.lineTo(x,y):ctx.moveTo(x,y); });
+  ctx.closePath(); ctx.fillStyle='rgba(156,107,63,.32)'; ctx.fill();
+  const cutSet=new Set(piece.cutEdges);
+  ctx.lineWidth=2.5; ctx.lineJoin='round';
+  for(let i=0;i<4;i++){
+    const a=an.pts[i], b=an.pts[(i+1)%4];
+    ctx.beginPath(); ctx.moveTo(TX(a),TY(a)); ctx.lineTo(TX(b),TY(b));
+    ctx.strokeStyle=cutSet.has(i)?'#ffb454':'#cdd6e0'; ctx.stroke();
+  }
+  // labels pushed outside the outline (legible even for long/thin on-edge boards)
+  const cAng={}; an.cuts.forEach(c=>cAng[c.ei]=c);
+  let cgx=0,cgy=0; an.pts.forEach(p=>{cgx+=TX(p);cgy+=TY(p);}); cgx/=4; cgy/=4;
+  ctx.font='11px -apple-system,Segoe UI,sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  for(let i=0;i<4;i++){
+    const a=an.pts[i], b=an.pts[(i+1)%4], isCut=cutSet.has(i);
+    const mx=(TX(a)+TX(b))/2, my=(TY(a)+TY(b))/2;
+    const dx=mx-cgx, dy=my-cgy, L=Math.hypot(dx,dy)||1;
+    const lx=mx+dx/L*15, ly=my+dy/L*15;
+    if(isCut){ ctx.fillStyle='#ffb454'; ctx.fillText(fmt(cAng[i].fromSquare,1)+'° off sq',lx,ly); }
+    else { ctx.fillStyle='#cdd6e0'; ctx.fillText(fmt(an.edges[i].len)+'"',lx,ly); }
+  }
+}
+function drawHexBP(ctx,cv,piece){
+  const R=piece.hex.side, cx=cv.width/2, cy=cv.height/2;
+  const sc=Math.min(cv.width-100,cv.height-90)/(2*R);
+  ctx.beginPath();
+  for(let k=0;k<6;k++){ const a=Math.PI/6+k*Math.PI/3;
+    const x=cx+R*sc*Math.cos(a), y=cy+R*sc*Math.sin(a); k?ctx.lineTo(x,y):ctx.moveTo(x,y); }
+  ctx.closePath(); ctx.fillStyle='rgba(156,107,63,.32)'; ctx.fill();
+  ctx.strokeStyle='#ffb454'; ctx.lineWidth=2.5; ctx.lineJoin='round'; ctx.stroke();
+  ctx.fillStyle='#e6edf3'; ctx.font='12px -apple-system,Segoe UI,sans-serif'; ctx.textAlign='center';
+  ctx.fillText(`${fmt(piece.hex.flats)}" across flats`,cx,cy-6);
+  ctx.fillStyle='#8b97a7';
+  ctx.fillText(`${fmt(piece.hex.side)}" sides · 120° corners`,cx,cy+12);
+}
+function fillDims(piece,an){
+  let rows=[];
+  if(an){
+    if(piece.sortLong){
+      const L=piece.longEdges.map(([ei])=>an.edges[ei].len).sort((a,b)=>b-a);
+      rows.push(['Long-point length',fmt(L[0])+'"'],['Short-point length',fmt(L[1])+'"']);
+    } else {
+      piece.longEdges.forEach(([ei,lab])=>rows.push([lab,fmt(an.edges[ei].len)+'"']));
+    }
+    piece.section.forEach(([k,v])=>rows.push([k,fmt(v)+'"']));
+    an.cuts.forEach(c=>rows.push([c.name,fmt(c.fromSquare,1)+'° off square']));
+    piece.extra.forEach(([k,v])=>rows.push([k,fmt(v,1)+'°']));
+  } else {                                                        // post: hexagon
+    rows=piece.dims.map(([k,v])=> k==='Faces'?[k,String(v)]:[k,fmt(v)+'"']);
+  }
+  $('bpDims').innerHTML=rows.map(([k,v])=>
+    `<div class="r"><span class="k">${k}</span><span class="v">${v}</span></div>`).join('');
+}
+
+function line(a,b,hex){
+  const g=new THREE.BufferGeometry().setFromPoints([a,b]);
+  return new THREE.Line(g,new THREE.LineBasicMaterial({color:hex,depthTest:false}));
+}
+
+// ================= DESIGN 2: yurt shoes =================
+function yurtY(r,Router,slopeRad){ return -(Math.max(0,r-Router))*Math.tan(slopeRad); }
+
+function readModel2(){
+  const dia=clampNum(parseFloat($('dia').value));
+  const lip=clampNum(parseFloat($('lip').value));
+  const domeH=Math.max(0.25,clampNum(parseFloat($('domeH').value),0.25));
+  const bw=Math.max(0.25,clampNum(parseFloat($('bw').value),3.5));
+  const bt=Math.max(0.25,clampNum(parseFloat($('bt').value),1.5));
+  const slopeDeg=Math.max(0,clampNum(parseFloat($('slope2n').value),15));
+  const ff=clampNum(parseFloat($('ff2n').value));
+  const ringH=Math.max(0,clampNum(parseFloat($('ring2n').value),15));
+  const H=Math.max(ringH+0.5,clampNum(parseFloat($('ah2n').value),30));
+  const shoeL=Math.max(1,clampNum(parseFloat($('shoeL2').value),10));
+  const shoeW=Math.max(0.5,clampNum(parseFloat($('shoeW2').value),3.5));
+  const shoeT=Math.max(0.25,clampNum(parseFloat($('shoeT2').value),1.5));
+  const clr=clampNum(parseFloat($('clr2').value));
+
+  const slopeRad=slopeDeg*Math.PI/180;
+  const Router=dia/2, Rglass=Math.max(0.1,Router-lip);
+  const Rs=(Rglass*Rglass+domeH*domeH)/(2*domeH), yc=domeH-Rs;
+
+  // FOOT ring is the anchor (where the shoes rest on the yurt — the widest point).
+  // boards on edge: bt radial, bw tall. corner radius from inner apothem.
+  const aIn=ff/2, aOut=aIn+bt;                 // foot inner / outer apothem
+  const RcIn=aIn/COS30, RcOut=aOut/COS30;      // foot inner / outer corner radius
+  const aTop=bt*COS30;                          // king-post apothem at apex
+  const yFoot=yurtY(RcOut,Router,slopeRad);     // foot corner sits on the yurt slope
+
+  // rafter is the straight line foot corner (RcOut, yFoot) -> apex (aTop, H).
+  // the tie frame is DERIVED where that line crosses ringH, flush with the rafter tops.
+  const dr=aTop-RcOut, dy=H-yFoot;
+  const tRing=(ringH-yFoot)/dy;                 // fraction up the rafter at ring height
+  const Rtie=RcOut+dr*tRing;                    // tie outer corner radius
+  const RtieIn=Math.max(0.1,Rtie-bt/COS30);     // tie inner corner radius
+  const aTieIn=Math.max(0,Rtie*COS30-bt);       // tie inner apothem
+  const aTieOut=Rtie*COS30;                      // tie outer apothem
+
+  // clearances are TRUE perpendicular distances from the glass to the actual wood.
+  // tie ring: bottom inner edge of the board (glass is steeply sloped there).
+  const tie=tieClear2(aTieIn,ringH,bw,Rs,yc,domeH,Rglass);
+  const gapTie=tie.gap;
+  // hip rafters: real on-edge boards at the corners (the faces between them are open air).
+  const raf=rafterClear2(RcOut,yFoot,aTop,H,bw,Rs,yc,domeH,Rglass);
+  const gapRaf=raf.gap;
+
+  const governing=Math.min(gapTie,gapRaf);
+  const bind=gapTie<=gapRaf?'tie':'rafter';
+
+  const sIn=2*aTieIn*TAN30, sOut=2*aTieOut*TAN30;   // tie board short / long edge
+  const rafterLen=Math.hypot(RcOut-aTop,yFoot-H);
+  const pitch=Math.atan2(H-yFoot,RcOut-aTop)*180/Math.PI;
+
+  return {dia,lip,domeH,bw,bt,slopeDeg,slopeRad,ff,ringH,H,shoeL,shoeW,shoeT,clr,
+          Router,Rglass,Rs,yc,aIn,aOut,RcIn,RcOut,aTop,yFoot,
+          Rtie,RtieIn,aTieIn,aTieOut,tieY:tie.y,
+          gapTie,gapRaf,rafY:raf.y,rafRho:raf.rho,governing,bind,sIn,sOut,rafterLen,pitch};
+}
+
+// signed shortest distance from a meridian point (rho,y) to the glass dome cap.
+// the dome is a spherical cap: centre (0,yc), radius Rs, surface for y in [0,domeH].
+// +ve = wood clears the glass, -ve = wood cuts into it. true perpendicular to the glass.
+function domeDist2D(rho,y,Rs,yc,domeH,Rglass){
+  const dyc=y-yc, d=Math.hypot(rho,dyc), yProj=yc+Rs*dyc/d;
+  if(yProj<0)      return Math.hypot(rho-Rglass, y);   // closest point is the rim circle
+  if(yProj>domeH)  return Math.hypot(rho, y-domeH);     // closest point is the apex
+  return d-Rs;                                          // onto the cap face (signed)
+}
+// tie ring: vertical inner face (apothem aTieIn) hanging from ringH-bw to ringH.
+// the glass is widest low down, so the board's bottom inner edge is the tightest point.
+function tieClear2(aTieIn,ringH,bw,Rs,yc,domeH,Rglass){
+  let min=Infinity, atY=ringH; const n=48;
+  for(let i=0;i<=n;i++){ const y=(ringH-bw)+bw*i/n;
+    const g=domeDist2D(aTieIn,y,Rs,yc,domeH,Rglass);
+    if(g<min){min=g;atY=y;} }
+  return {gap:min,y:atY};
+}
+// hip rafter: actual on-edge board at a hexagon corner, foot (RcOut,yFoot) -> apex (aTop,H).
+// its inner face (offset bw/2 toward the glass) is the feature that can touch the dome.
+function rafterClear2(RcOut,yFoot,aTop,H,bw,Rs,yc,domeH,Rglass){
+  const dr=aTop-RcOut, dy=H-yFoot, L=Math.hypot(dr,dy);
+  const nx=-dy/L, ny=dr/L;                              // meridian normal, inward-down toward the glass
+  let min=Infinity, atY=0, atRho=0; const n=160;
+  for(let i=0;i<=n;i++){ const t=i/n;
+    const rho=RcOut+dr*t + (bw/2)*nx, y=yFoot+dy*t + (bw/2)*ny;
+    const g=domeDist2D(rho,y,Rs,yc,domeH,Rglass);
+    if(g<min){min=g;atY=y;atRho=rho;} }
+  return {gap:min,y:atY,rho:atRho};
+}
+
+function classify2(m){
+  const g=m.governing,c=m.clr,w=m.bind==='tie'?'tie ring':'rafter (hip)';
+  if(g<-0.0005) return {color:'var(--bad)',hex:0xff5d5d,text:`INTERFERENCE — the ${w} cuts into the dome by ${fmt(-g)}"`};
+  if(Math.abs(g)<=0.0005) return {color:'var(--touch)',hex:0xff8c42,text:`TOUCHING — the ${w} just contacts the dome`};
+  if(g<c) return {color:'var(--warn)',hex:0xffb454,text:`TOO TIGHT — ${fmt(g)}" gap at the ${w}, ${fmt(c-g)}" short of target`};
+  return {color:'var(--ok)',hex:0x3ecf8e,text:`OK — ${fmt(g)}" min gap (${fmt(g-c)}" over target, binds at the ${w})`};
+}
+
+function drawReadout2(m,st){
+  $('dot').style.background=st.color;
+  $('statusText').textContent=st.text; $('statusText').style.color=st.color;
+  $('readout').innerHTML=[
+    ['Tie ring gap',fmt(m.gapTie)+'"'],
+    ['Tie binds at',fmt(m.tieY)+'" high'],
+    ['Rafter gap (hip)',fmt(m.gapRaf)+'"'],
+    ['Rafter binds at',fmt(m.rafY)+'" high'],
+    ['Apex height',fmt(m.H)+'"'],
+    ['Yurt slope',fmt(m.slopeDeg,1)+'°'],
+    ['Rafter pitch',fmt(m.pitch,1)+'°'],
+    ['Foot drop',fmt(-m.yFoot)+'"'],
+    ['Foot flat-to-flat',fmt(m.ff)+'"'],
+    ['Tie flat-to-flat',fmt(2*m.aTieIn)+'"'],
+  ].map(([k,v])=>`<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+
+  $('cutTbl').innerHTML=
+    '<tr><th>Part</th><th>Qty</th><th>Length</th><th>Section</th><th>Cut</th></tr>'+
+    `<tr><td>Rafter (on edge)</td><td>6</td><td>${fmt(m.rafterLen)}" (long point)</td><td>${fmt(m.bw)}"&times;${fmt(m.bt)}"</td><td>${fmt(m.slopeDeg,1)}° foot + ${fmt(90-m.pitch,1)}° plumb top</td></tr>`+
+    `<tr><td>Tie frame board</td><td>6</td><td>${fmt(m.sOut)}" long / ${fmt(m.sIn)}" short</td><td>${fmt(m.bt)}"&times;${fmt(m.bw)}"</td><td>30° miter both ends</td></tr>`+
+    `<tr><td>Shoe</td><td>6</td><td>${fmt(m.shoeL)}"</td><td>${fmt(m.shoeW)}"&times;${fmt(m.shoeT)}"</td><td>lies flat on ${fmt(m.slopeDeg,1)}° slope</td></tr>`+
+    `<tr><td>King post (hex)</td><td>1</td><td>cut to suit</td><td>${fmt(2*m.aTop)}" across flats</td><td>6 faces, ${fmt(m.bt)}" sides</td></tr>`;
+  $('cutNote').textContent=
+    `Rafters spring from the yurt slope (feet ${fmt(-m.yFoot)}" below the dome rim) up to a central hex king post. `+
+    `A hexagon tie frame at ${fmt(m.ringH)}" ties them together. Each shoe lays flat on the ${fmt(m.slopeDeg,1)}° yurt roof, in line with its rafter. `+
+    `Total rafter run ≈ ${fmt(6*m.rafterLen)}".`;
+}
+
+function syncLabels2(m){
+  $('v_dia').textContent=fmt(m.dia)+'"';
+  $('v_lip').textContent=fmt(m.lip)+'"';
+  $('v_h').textContent=fmt(m.domeH)+'"';
+  $('v_bw').textContent=fmt(m.bw)+'"';
+  $('v_bt').textContent=fmt(m.bt)+'"';
+  $('v_slope2').textContent=fmt(m.slopeDeg,1)+'°';
+  $('v_ff2').textContent=fmt(m.ff)+'"';
+  $('v_ring2').textContent=fmt(m.ringH)+'"';
+  $('v_ah2').textContent=fmt(m.H)+'"';
+  $('v_shoeL2').textContent=fmt(m.shoeL)+'"';
+  $('v_shoeW2').textContent=fmt(m.shoeW)+'"';
+  $('v_shoeT2').textContent=fmt(m.shoeT)+'"';
+  $('v_cl2').textContent=fmt(m.clr)+'"';
+}
+
+function build2(m,st){
+  disposeGroup(model);
+  clearOutline(); pickables=[];
+
+  if($('tGrid').checked){
+    const grid=new THREE.GridHelper(144,24,0x2a3a4a,0x1a2430); model.add(grid);
+  }
+
+  // yurt roof cone
+  if($('tYurt').checked && m.slopeDeg>0.01){
+    const rOut=Math.max(m.RcOut+m.shoeL,m.Router+30);
+    const pts=[new THREE.Vector2(m.Router,0), new THREE.Vector2(rOut,yurtY(rOut,m.Router,m.slopeRad))];
+    const geo=new THREE.LatheGeometry(pts,72);
+    const mat=new THREE.MeshStandardMaterial({color:0x6b5440,roughness:0.95,metalness:0,
+      side:THREE.DoubleSide,transparent:true,opacity:0.5});
+    model.add(new THREE.Mesh(geo,mat));
+  }
+
+  if($('tGlass').checked){
+    const pts=[]; const N=48;
+    for(let i=0;i<=N;i++){ const y=m.domeH*i/N; pts.push(new THREE.Vector2(rhoAt(y,m.Rs,m.yc),y)); }
+    const glassMat=new THREE.MeshPhysicalMaterial({color:0x9fd0ff,transparent:true,opacity:0.22,
+      roughness:0.06,metalness:0,side:THREE.DoubleSide,depthWrite:false});
+    const dome=new THREE.Mesh(new THREE.LatheGeometry(pts,72),glassMat); dome.renderOrder=3; model.add(dome);
+    if(m.lip>0){
+      const lp=[new THREE.Vector2(m.Rglass,0),new THREE.Vector2(m.Router,0),
+                new THREE.Vector2(m.Router,0.4),new THREE.Vector2(m.Rglass,0.4)];
+      const lipMat=new THREE.MeshPhysicalMaterial({color:0x8fbfe6,transparent:true,opacity:0.5,
+        roughness:0.1,side:THREE.DoubleSide,depthWrite:false});
+      const lipM=new THREE.Mesh(new THREE.LatheGeometry(lp,72),lipMat); lipM.renderOrder=2; model.add(lipM);
+    }
+  }
+
+  const woodOk=0x9c6b3f;
+  const woodHex=(st.hex===0x3ecf8e)?woodOk:st.hex;
+  const woodMat=new THREE.MeshStandardMaterial({color:woodHex,roughness:0.85,metalness:0.02,side:THREE.DoubleSide});
+  const edgeMat=new THREE.LineBasicMaterial({color:st.hex});
+
+  // rafters: on edge, sloped foot on the yurt, plumb top against the king post
+  let yTopMin=Infinity, yTopMax=-Infinity;
+  for(let k=0;k<6;k++){
+    const ang=Math.PI/6+k*Math.PI/3;
+    const rr=new THREE.Vector3(Math.cos(ang),0,Math.sin(ang));
+    const tt=new THREE.Vector3(-Math.sin(ang),0,Math.cos(ang));
+    const footC=new THREE.Vector3(m.RcOut*Math.cos(ang),m.yFoot,m.RcOut*Math.sin(ang));
+    const topC =new THREE.Vector3(m.aTop*Math.cos(ang),m.H,m.aTop*Math.sin(ang));
+    const d=new THREE.Vector3().subVectors(topC,footC).normalize();
+    let nn=new THREE.Vector3().crossVectors(tt,d).normalize(); if(nn.y<0) nn.multiplyScalar(-1);
+    const nSlope=new THREE.Vector3(Math.sin(m.slopeRad)*Math.cos(ang),Math.cos(m.slopeRad),Math.sin(m.slopeRad)*Math.sin(ang));
+    const denomR=d.dot(rr), denomS=d.dot(nSlope);
+    const loop=[[1,1],[1,-1],[-1,-1],[-1,1]];
+    const B=[],T=[];
+    for(const [sn,stt] of loop){
+      const ci=new THREE.Vector3().addScaledVector(nn,sn*m.bw/2).addScaledVector(tt,stt*m.bt/2);
+      const A=new THREE.Vector3().addVectors(footC,ci);
+      const sB=(new THREE.Vector3().subVectors(footC,A).dot(nSlope))/denomS;   // foot cut on the slope plane
+      B.push(A.clone().addScaledVector(d,sB));
+      const sT=(m.aTop-A.dot(rr))/denomR;                                       // plumb cut at radius aTop
+      const Tp=A.clone().addScaledVector(d,sT); T.push(Tp);
+      yTopMin=Math.min(yTopMin,Tp.y); yTopMax=Math.max(yTopMax,Tp.y);
+    }
+    const raf=prism8(B,T,woodMat);
+    raf.userData={pick:true,key:'rafter'+k,piece:{
+      kind:'rafter', name:`Rafter ${k+1} of 6`, quad:[B[3],T[3],T[0],B[0]], sortLong:true,
+      axisEdge:0, cutEdges:[1,3], cutNames:['Plumb cut (top)','Foot cut (on slope)'],
+      longEdges:[[0,''],[2,'']], section:[['Depth (face)',m.bw],['Thickness',m.bt]],
+      extra:[['Roof pitch',m.pitch]] }};
+    pickables.push(raf); model.add(raf);
+    model.add(new THREE.LineSegments(new THREE.EdgesGeometry(raf.geometry),edgeMat));
+
+    // shoe: flat board on the slope, in line with the rafter, under the foot
+    const sdir=new THREE.Vector3(Math.cos(m.slopeRad)*Math.cos(ang),-Math.sin(m.slopeRad),Math.cos(m.slopeRad)*Math.sin(ang));
+    const cen=footC.clone();                                                    // shoe top centred at the foot
+    const Bs=[],Ts=[];
+    for(const [ss,sw] of loop){
+      const top=cen.clone().addScaledVector(sdir,ss*m.shoeL/2).addScaledVector(tt,sw*m.shoeW/2);
+      Ts.push(top); Bs.push(top.clone().addScaledVector(nSlope,-m.shoeT));
+    }
+    const shoe=prism8(Bs,Ts,woodMat);
+    shoe.userData={pick:true,key:'shoe'+k,piece:{
+      kind:'shoe', name:`Shoe ${k+1} of 6`,
+      quad:[Ts[3],Ts[0],Ts[1],Ts[2]], axisEdge:0, cutEdges:[], cutNames:[],
+      longEdges:[[0,'Length (along slope)'],[2,'Width']],
+      section:[['Thickness',m.shoeT]], extra:[['Lies on slope',m.slopeDeg]] }};
+    pickables.push(shoe); model.add(shoe);
+    model.add(new THREE.LineSegments(new THREE.EdgesGeometry(shoe.geometry),edgeMat));
+  }
+
+  // tie frame hexagon at ringH (top flush at ringH), boards bt wide x bw tall
+  const inC=corners(m.RtieIn,0), outC=corners(m.Rtie,0);
+  for(let k=0;k<6;k++){ const k2=(k+1)%6;
+    const tie=basePrism(inC[k],inC[k2],outC[k2],outC[k],m.ringH-m.bw,m.ringH,woodMat);
+    tie.userData={pick:true,key:'tie'+k,piece:{
+      kind:'base', name:`Tie frame board ${k+1} of 6`,
+      quad:[new THREE.Vector3(outC[k2][0],m.ringH,outC[k2][1]),new THREE.Vector3(outC[k][0],m.ringH,outC[k][1]),
+            new THREE.Vector3(inC[k][0],m.ringH,inC[k][1]),new THREE.Vector3(inC[k2][0],m.ringH,inC[k2][1])],
+      axisEdge:0, cutEdges:[1,3], cutNames:['Miter, end A','Miter, end B'],
+      longEdges:[[0,'Outer edge (long)'],[2,'Inner edge (short)']],
+      section:[['Board width',m.bt],['Height',m.bw]], extra:[] }};
+    pickables.push(tie); model.add(tie);
+    model.add(new THREE.LineSegments(new THREE.EdgesGeometry(tie.geometry),edgeMat));
+  }
+
+  // king post
+  const postH=(yTopMax-yTopMin)+0.8, postY=(yTopMin+yTopMax)/2;
+  const post=new THREE.Mesh(new THREE.CylinderGeometry(m.bt,m.bt,postH,6),woodMat);
+  post.position.set(0,postY,0);
+  post.userData={pick:true,key:'post',piece:{kind:'post',name:'Hexagonal king post',
+    hex:{flats:2*m.aTop,side:m.bt,height:postH},
+    dims:[['Across flats',2*m.aTop],['Side length',m.bt],['Height',postH],['Faces',6]]}};
+  pickables.push(post); model.add(post);
+  const pe=new THREE.LineSegments(new THREE.EdgesGeometry(post.geometry),edgeMat);
+  pe.position.copy(post.position); model.add(pe);
+
+  if($('tMarkers').checked){
+    const mk=st.hex, C=new THREE.Vector3(0,m.yc,0);
+    // closest point on the glass cap to a wood point W (perpendicular to the surface)
+    const glassPt=(W)=>{ const v=new THREE.Vector3().subVectors(W,C); const d=v.length();
+      const D=C.clone().addScaledVector(v,m.Rs/d);
+      D.y=Math.min(m.domeH,Math.max(0,D.y)); return D; };
+
+    // tie ring: bottom inner edge at a flat face (flats sit at k*60°)
+    const phiT=Math.PI/3;
+    const Wt=new THREE.Vector3(m.aTieIn*Math.cos(phiT),m.ringH-m.bw,m.aTieIn*Math.sin(phiT));
+    const Dt=glassPt(Wt);
+    model.add(line(Wt,Dt,mk));
+    const lblT=makeLabel(`tie ${fmt(m.gapTie)}"`,mk);
+    lblT.position.copy(Wt.clone().lerp(Dt,0.5)).add(new THREE.Vector3(0,1.5,0)); model.add(lblT);
+
+    // rafter: inner edge at the binding height, at a hexagon corner (corners at 30°+k*60°)
+    const phiR=Math.PI/6;
+    const Wr=new THREE.Vector3(m.rafRho*Math.cos(phiR),m.rafY,m.rafRho*Math.sin(phiR));
+    const Dr=glassPt(Wr);
+    model.add(line(Wr,Dr,mk));
+    const lblR=makeLabel(`rafter ${fmt(m.gapRaf)}"`,mk);
+    lblR.position.copy(Wr.clone().lerp(Dr,0.5)).add(new THREE.Vector3(0,1.5,0)); model.add(lblR);
+  }
+
+  if(selKey){
+    const mh=pickables.find(o=>o.userData.key===selKey);
+    if(mh) selectPiece(mh); else clearSelection();
+  }
+}
+
+// ================= WIRING =================
+function renderTab1(){
+  const m=readModel();
+  syncLabels(m);
+  const st=classify(m);
+  drawReadout(m,st);
+  build(m,st);
+}
+function renderTab2(){
+  const m=readModel2();
+  syncLabels2(m);
+  const st=classify2(m);
+  drawReadout2(m,st);
+  build2(m,st);
+}
+function render(){ if(activeTab===2) renderTab2(); else renderTab1(); }
+
+function fitBase(){
+  const m=readModel();
+  const ff=2*(m.Router+m.clr);
+  $('ffn').value=fmt(ff,4); $('ff').value=ff; render();
+}
+function fitApex(){
+  const m=readModel();
+  let lo=m.domeH+m.drop+0.1, hi=400;
+  for(let it=0;it<40;it++){ const mid=(lo+hi)/2;
+    const yStart=Math.min(m.frameH,m.domeH*0.5);
+    const g=roofGap(m.aIn,mid,m.Rs,m.yc,m.domeH,yStart,m.drop).gap;
+    if(g>=m.clr) hi=mid; else lo=mid; }
+  $('ahn').value=fmt(hi,3); $('ah').value=hi; render();
+}
+function fitFeet2(){
+  const m=readModel2();
+  const ff=2*(m.Router+m.clr);          // foot inner face sits clr outside the dome rim
+  $('ff2n').value=fmt(ff,4); $('ff2').value=ff; render();
+}
+function fitApex2(){
+  const m=readModel2();
+  // raising the apex steepens the rafters and widens the derived tie ring, so both
+  // clearances grow with H. bisect for the lowest apex that clears by clr.
+  const govAt=(H)=>{
+    const dr=m.aTop-m.RcOut, dy=H-m.yFoot, tRing=(m.ringH-m.yFoot)/dy;
+    const Rtie=m.RcOut+dr*tRing, aTieIn=Math.max(0,Rtie*COS30-m.bt);
+    const tie=tieClear2(aTieIn,m.ringH,m.bw,m.Rs,m.yc,m.domeH,m.Rglass).gap;
+    const raf=rafterClear2(m.RcOut,m.yFoot,m.aTop,H,m.bw,m.Rs,m.yc,m.domeH,m.Rglass).gap;
+    return Math.min(tie,raf);
+  };
+  let lo=m.ringH+0.5, hi=400;
+  for(let it=0;it<44;it++){ const mid=(lo+hi)/2;
+    if(govAt(mid)>=m.clr) hi=mid; else lo=mid; }
+  $('ah2n').value=fmt(hi,3); $('ah2').value=hi; render();
+}
+
+function sync(rangeId,numId){
+  $(rangeId).addEventListener('input',()=>{ $(numId).value=$(rangeId).value; render(); });
+  $(numId).addEventListener('input',()=>{ $(rangeId).value=$(numId).value; render(); });
+}
+
+function switchTab(n){
+  activeTab=n; clearSelection();
+  $('tabBtn1').classList.toggle('active',n===1);
+  $('tabBtn2').classList.toggle('active',n===2);
+  $('tab1ctl').classList.toggle('active',n===1);
+  $('tab2ctl').classList.toggle('active',n===2);
+  render();
+}
+
+function boot(){
+  if(!renderer){ try{ initScene(); }catch(e){ $('err').style.display='flex'; console.error(e); return; } }
+  sync('ff','ffn'); sync('ah','ahn'); sync('drop','dropn');
+  sync('slope2','slope2n'); sync('ff2','ff2n'); sync('ring2','ring2n'); sync('ah2','ah2n');
+  ['dia','lip','domeH','bw','bt','clr','onEdge','tGlass','tPanels','tMarkers','tYurt','tGrid','tRot']
+    .forEach(id=>$(id).addEventListener('input',render));
+  ['shoeL2','shoeW2','shoeT2','clr2'].forEach(id=>$(id).addEventListener('input',render));
+  $('fitBase').addEventListener('click',fitBase);
+  $('fitApex').addEventListener('click',fitApex);
+  $('fitAll').addEventListener('click',()=>{ fitBase(); fitApex(); });
+  $('fitFeet2').addEventListener('click',fitFeet2);
+  $('fitApex2').addEventListener('click',fitApex2);
+  $('bpClose').addEventListener('click',clearSelection);
+  $('tabBtn1').addEventListener('click',()=>switchTab(1));
+  $('tabBtn2').addEventListener('click',()=>switchTab(2));
+  fitBase(); fitApex();
+  fitFeet2(); fitApex2();
+  render();
+}
+boot();
+</script>
+</body>
+</html>

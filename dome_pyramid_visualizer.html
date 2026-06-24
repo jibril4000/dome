@@ -221,7 +221,7 @@
 
     <h2>Display</h2>
     <label class="toggle"><input type="checkbox" id="tGlass" checked><span>Show glass dome</span></label>
-    <label class="toggle"><input type="checkbox" id="tPanels"><span>Show roof panels (solid faces)</span></label>
+    <label class="toggle"><input type="checkbox" id="tPanels"><span>Cover all six faces (solid panels)</span></label>
     <label class="toggle"><input type="checkbox" id="tMarkers" checked><span>Show clearance markers</span></label>
     <label class="toggle"><input type="checkbox" id="tYurt" checked><span>Show yurt roof (Design 2)</span></label>
     <label class="toggle"><input type="checkbox" id="tGrid" checked><span>Show 6&quot; floor grid</span></label>
@@ -796,7 +796,10 @@ function readModel2(){
   const governing=Math.min(gapTie,gapRaf);
   const bind=gapTie<=gapRaf?'tie':'rafter';
 
-  const sIn=2*aTieIn*TAN30, sOut=2*aTieOut*TAN30;   // tie board short / long edge
+  // tie boards butt FLUSH between the rafters (not mitered corner-to-corner),
+  // so each end stops at a rafter's side face, losing bt/cos30 of length overall.
+  const tieCut=bt/COS30;
+  const sIn=Math.max(0,2*aTieIn*TAN30-tieCut), sOut=Math.max(0,2*aTieOut*TAN30-tieCut);   // tie board short / long edge, butted
   const rafterLen=Math.hypot(RcOut-aTop,yFoot-H);
   const pitch=Math.atan2(H-yFoot,RcOut-aTop)*180/Math.PI;
 
@@ -864,12 +867,13 @@ function drawReadout2(m,st){
   $('cutTbl').innerHTML=
     '<tr><th>Part</th><th>Qty</th><th>Length</th><th>Section</th><th>Cut</th></tr>'+
     `<tr><td>Rafter (on edge)</td><td>6</td><td>${fmt(m.rafterLen)}" (long point)</td><td>${fmt(m.bw)}"&times;${fmt(m.bt)}"</td><td>${fmt(m.slopeDeg,1)}° foot + ${fmt(90-m.pitch,1)}° plumb top</td></tr>`+
-    `<tr><td>Tie frame board</td><td>6</td><td>${fmt(m.sOut)}" long / ${fmt(m.sIn)}" short</td><td>${fmt(m.bt)}"&times;${fmt(m.bw)}"</td><td>30° miter both ends</td></tr>`+
+    `<tr><td>Tie frame board</td><td>6</td><td>${fmt(m.sOut)}" long / ${fmt(m.sIn)}" short</td><td>${fmt(m.bt)}"&times;${fmt(m.bw)}"</td><td>30° butt cut both ends (against rafters)</td></tr>`+
     `<tr><td>Shoe</td><td>6</td><td>${fmt(m.shoeL)}"</td><td>${fmt(m.shoeW)}"&times;${fmt(m.shoeT)}"</td><td>lies flat on ${fmt(m.slopeDeg,1)}° slope</td></tr>`+
     `<tr><td>King post (hex)</td><td>1</td><td>cut to suit</td><td>${fmt(2*m.aTop)}" across flats</td><td>6 faces, ${fmt(m.bt)}" sides</td></tr>`;
   $('cutNote').textContent=
     `Rafters spring from the yurt slope (feet ${fmt(-m.yFoot)}" below the dome rim) up to a central hex king post. `+
-    `A hexagon tie frame at ${fmt(m.ringH)}" ties them together. Each shoe lays flat on the ${fmt(m.slopeDeg,1)}° yurt roof, in line with its rafter. `+
+    `A hexagon tie frame at ${fmt(m.ringH)}" ties them together — each board butts flush between two rafters (meeting the rafters, not each other). `+
+    `Each shoe lays flat on the ${fmt(m.slopeDeg,1)}° yurt roof, in line with its rafter. `+
     `Total rafter run ≈ ${fmt(6*m.rafterLen)}".`;
 }
 
@@ -977,17 +981,38 @@ function build2(m,st){
     model.add(new THREE.LineSegments(new THREE.EdgesGeometry(shoe.geometry),edgeMat));
   }
 
-  // tie frame hexagon at ringH (top flush at ringH), boards bt wide x bw tall
-  const inC=corners(m.RtieIn,0), outC=corners(m.Rtie,0);
-  for(let k=0;k<6;k++){ const k2=(k+1)%6;
-    const tie=basePrism(inC[k],inC[k2],outC[k2],outC[k],m.ringH-m.bw,m.ringH,woodMat);
+  // tie frame at ringH (top flush at ringH), boards bt thick x bw tall.
+  // each board is a STRAIGHT beam spanning between two adjacent rafters, its ends
+  // cut to butt FLUSH against the rafters' side faces — they meet the vertical beams,
+  // not each other (no mitered corner-to-corner ring that would run through the rafters).
+  const yTieB=m.ringH-m.bw, yTieT=m.ringH;
+  for(let k=0;k<6;k++){
+    const a0=Math.PI/6+k*Math.PI/3;                 // rafter k azimuth (corner)
+    const a1=Math.PI/6+(k+1)*Math.PI/3;             // rafter k+1 azimuth (corner)
+    const fa=a0+Math.PI/6;                          // mid-face azimuth (edge normal)
+    const fn=new THREE.Vector2(Math.cos(fa),Math.sin(fa));    // outward face normal
+    const ed=new THREE.Vector2(-Math.sin(fa),Math.cos(fa));   // along-edge direction
+    const tt0=new THREE.Vector2(-Math.sin(a0),Math.cos(a0));  // rafter k tangential (side-face normal)
+    const tt1=new THREE.Vector2(-Math.sin(a1),Math.cos(a1));  // rafter k+1 tangential
+    // rafter side faces toward the gap: centerline (at radius Rtie) offset by bt/2
+    const Q0=new THREE.Vector2(m.Rtie*Math.cos(a0),m.Rtie*Math.sin(a0)).addScaledVector(tt0, m.bt/2);
+    const Q1=new THREE.Vector2(m.Rtie*Math.cos(a1),m.Rtie*Math.sin(a1)).addScaledVector(tt1,-m.bt/2);
+    // intersect an edge line (apothem ap, dir ed) with a rafter face plane (point Q, normal tt)
+    const solve=(ap,Q,tt)=>{ const base=fn.clone().multiplyScalar(ap);
+      const s=Q.clone().sub(base).dot(tt)/ed.dot(tt);
+      return base.addScaledVector(ed,s); };
+    const oOut0=solve(m.aTieOut,Q0,tt0), oOut1=solve(m.aTieOut,Q1,tt1);   // outer edge ends
+    const oIn0 =solve(m.aTieIn ,Q0,tt0), oIn1 =solve(m.aTieIn ,Q1,tt1);   // inner edge ends
+    const V=(p,y)=>new THREE.Vector3(p.x,y,p.y);
+    const B=[V(oOut0,yTieB),V(oOut1,yTieB),V(oIn1,yTieB),V(oIn0,yTieB)];
+    const T=[V(oOut0,yTieT),V(oOut1,yTieT),V(oIn1,yTieT),V(oIn0,yTieT)];
+    const tie=prism8(B,T,woodMat);
     tie.userData={pick:true,key:'tie'+k,piece:{
       kind:'base', name:`Tie frame board ${k+1} of 6`,
-      quad:[new THREE.Vector3(outC[k2][0],m.ringH,outC[k2][1]),new THREE.Vector3(outC[k][0],m.ringH,outC[k][1]),
-            new THREE.Vector3(inC[k][0],m.ringH,inC[k][1]),new THREE.Vector3(inC[k2][0],m.ringH,inC[k2][1])],
-      axisEdge:0, cutEdges:[1,3], cutNames:['Miter, end A','Miter, end B'],
+      quad:[T[0],T[1],T[2],T[3]],
+      axisEdge:0, cutEdges:[1,3], cutNames:['Butt cut to rafter','Butt cut to rafter'],
       longEdges:[[0,'Outer edge (long)'],[2,'Inner edge (short)']],
-      section:[['Board width',m.bt],['Height',m.bw]], extra:[] }};
+      section:[['Board thickness',m.bt],['Height',m.bw]], extra:[] }};
     pickables.push(tie); model.add(tie);
     model.add(new THREE.LineSegments(new THREE.EdgesGeometry(tie.geometry),edgeMat));
   }
@@ -1002,6 +1027,24 @@ function build2(m,st){
   pickables.push(post); model.add(post);
   const pe=new THREE.LineSegments(new THREE.EdgesGeometry(post.geometry),edgeMat);
   pe.position.copy(post.position); model.add(pe);
+
+  // optional cover over all six faces: each face is a triangle from two adjacent
+  // rafter feet up to a single apex point — a pointed top that bypasses the king post.
+  if($('tPanels').checked){
+    const panMat=new THREE.MeshStandardMaterial({color:woodHex,transparent:true,opacity:0.32,
+      side:THREE.DoubleSide,roughness:0.9});
+    const apex=[0,m.H,0];
+    for(let k=0;k<6;k++){
+      const a0=Math.PI/6+k*Math.PI/3, a1=Math.PI/6+(k+1)*Math.PI/3;
+      const g=new THREE.BufferGeometry();
+      g.setAttribute('position',new THREE.BufferAttribute(new Float32Array([
+        m.RcOut*Math.cos(a0),m.yFoot,m.RcOut*Math.sin(a0),
+        m.RcOut*Math.cos(a1),m.yFoot,m.RcOut*Math.sin(a1),
+        apex[0],apex[1],apex[2]]),3));
+      g.computeVertexNormals();
+      model.add(new THREE.Mesh(g,panMat));
+    }
+  }
 
   if($('tMarkers').checked){
     const mk=st.hex, C=new THREE.Vector3(0,m.yc,0);

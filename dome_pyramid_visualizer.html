@@ -809,52 +809,44 @@ function readModel2(){
   const aTop=bt*COS30;                          // king-post apothem at apex
   const yFoot=yurtY(RcOut,Router,slopeRad);     // foot corner sits on the yurt slope
 
-  // rafter is the straight line foot corner (RcOut, yFoot) -> apex (aTop, H).
-  // the tie frame is DERIVED where that line crosses ringH, flush with the rafter tops.
-  const dr=aTop-RcOut, dy=H-yFoot;
-  const tRing=(ringH-yFoot)/dy;                 // fraction up the rafter at ring height
-  const Rtie=RcOut+dr*tRing;                    // tie outer corner radius
-  const RtieIn=Math.max(0.1,Rtie-bt/COS30);     // tie inner corner radius
-  const aTieIn=Math.max(0,Rtie*COS30-bt);       // tie inner apothem
-  const aTieOut=Rtie*COS30;                      // tie outer apothem
+  // the six sloped pyramid faces (hip vertices on the rafters' outer faces, apex on the
+  // axis). this frame gives the face's slope/normal so the tie can sit flush in the face.
+  const fr=coverFrame(H,RcOut,aTop,yFoot,bw);
+  const {Rhip,yHipFoot,yApexCover,Lface,slR,slY,fnR,fnY}=fr;
+  const pitch=Math.atan2(H-yFoot,RcOut-aTop)*180/Math.PI;                 // hip (leg) pitch
+  const faceAngle=Math.atan2(yApexCover-yHipFoot,Rhip*COS30)*180/Math.PI; // flat-face pitch
+  const rafterLen=Math.hypot(RcOut-aTop,yFoot-H);
+
+  // tie frame: boards TILTED into the face plane (outer face flush in the face) so they
+  // actually back the panels, instead of standing plumb. Top-outer edge at height ringH.
+  const tHt=(ringH-yHipFoot)/(yApexCover-yHipFoot);
+  const rFace=Rhip*COS30*(1-tHt);              // apothem of the tie's outer-top edge
+  const aTieOut=rFace;                          // outer-top apothem
+  const aTieIn=Math.max(0,rFace-fnR*bt);        // inner-top apothem (board tilts inward by bt·fn)
+  const apBot=rFace-slR*bw;                      // apothem of the outer-bottom edge (slR<0 → larger)
+  const tieCut=bt/COS30;
+  const sIn=Math.max(0,2*aTieOut*TAN30-tieCut);   // outer-top edge (short)
+  const sOut=Math.max(0,2*apBot*TAN30-tieCut);    // outer-bottom edge (long)
 
   // clearances are TRUE perpendicular distances from the glass to the actual wood.
-  // tie ring: bottom inner edge of the board (glass is steeply sloped there).
-  const tie=tieClear2(aTieIn,ringH,bw,Rs,yc,domeH,Rglass);
+  const tie=tieClearTilt(fr,ringH,bw,bt,Rs,yc,domeH,Rglass);
   const gapTie=tie.gap;
-  // hip rafters: real on-edge boards at the corners (the faces between them are open air).
   const raf=rafterClear2(RcOut,yFoot,aTop,H,bw,Rs,yc,domeH,Rglass);
   const gapRaf=raf.gap;
-
   const governing=Math.min(gapTie,gapRaf);
   const bind=gapTie<=gapRaf?'tie':'rafter';
 
-  // tie boards butt FLUSH between the rafters (not mitered corner-to-corner),
-  // so each end stops at a rafter's side face, losing bt/cos30 of length overall.
-  const tieCut=bt/COS30;
-  const sIn=Math.max(0,2*aTieIn*TAN30-tieCut), sOut=Math.max(0,2*aTieOut*TAN30-tieCut);   // tie board short / long edge, butted
-  const rafterLen=Math.hypot(RcOut-aTop,yFoot-H);
-  const pitch=Math.atan2(H-yFoot,RcOut-aTop)*180/Math.PI;
-  // cover skin: panels rest on the rafters' OUTER faces (offset bw/2 along each
-  // rafter's outward normal) so the whole frame sits inside the pyramid. The apex
-  // is a single point on the axis, raised just enough to keep the rafter tops enclosed.
-  const Lr=Math.hypot(dr,dy);
-  const nnR=dy/Lr, nnY=-dr/Lr;                          // rafter outer normal: radial-out, up
-  const Rhip=RcOut+bw/2*nnR, yHipFoot=yFoot+bw/2*nnY;   // hip vertex at the foot (outer-face centre)
-  const Rtop=aTop+bw/2*nnR, yTopC=H+bw/2*nnY;           // rafter top outer-face centre
-  const yApexCover=Math.max(H,(Rtop*yHipFoot-Rhip*yTopC)/(Rtop-Rhip));
-  const panelSlant=Math.hypot(Rhip,yApexCover-yHipFoot);   // full apex-to-foot slant edge
-  const panelBase=Rhip;                                 // hip-to-hip at the foot (hexagon side)
-  // skirt: the panels only reach coverSkirt down the slope from the apex, so the
-  // covered part is a similar (smaller) triangle from the point — a short skirt.
+  // cover skin: panels rest on the rafter outer faces; short skirt down from the apex.
+  const panelSlant=Math.hypot(Rhip,yApexCover-yHipFoot);
+  const panelBase=Rhip;
   const tCover=Math.min(1,coverSkirt/panelSlant);
-  const panelSlantCut=panelSlant*tCover;                // slant edge actually covered (= coverSkirt unless capped)
-  const panelBaseCut=panelBase*tCover;                  // hexagon side at the skirt's lower edge
+  const panelSlantCut=panelSlant*tCover, panelBaseCut=panelBase*tCover;
 
   return {dia,lip,domeH,bw,bt,slopeDeg,slopeRad,ff,ringH,H,shoeL,shoeW,shoeT,clr,coverSkirt,
           Router,Rglass,Rs,yc,aIn,aOut,RcIn,RcOut,aTop,yFoot,
-          panelBase,panelSlant,panelBaseCut,panelSlantCut,tCover,yApexCover,
-          Rtie,RtieIn,aTieIn,aTieOut,tieY:tie.y,
+          Rhip,yHipFoot,yApexCover,slR,slY,fnR,fnY,rFace,faceAngle,
+          panelBase,panelSlant,panelBaseCut,panelSlantCut,tCover,
+          aTieIn,aTieOut,tieY:tie.y,tieRho:tie.rho,
           gapTie,gapRaf,rafY:raf.y,rafRho:raf.rho,governing,bind,sIn,sOut,rafterLen,pitch};
 }
 
@@ -867,14 +859,34 @@ function domeDist2D(rho,y,Rs,yc,domeH,Rglass){
   if(yProj>domeH)  return Math.hypot(rho, y-domeH);     // closest point is the apex
   return d-Rs;                                          // onto the cap face (signed)
 }
-// tie ring: vertical inner face (apothem aTieIn) hanging from ringH-bw to ringH.
-// the glass is widest low down, so the board's bottom inner edge is the tightest point.
-function tieClear2(aTieIn,ringH,bw,Rs,yc,domeH,Rglass){
-  let min=Infinity, atY=ringH; const n=48;
-  for(let i=0;i<=n;i++){ const y=(ringH-bw)+bw*i/n;
-    const g=domeDist2D(aTieIn,y,Rs,yc,domeH,Rglass);
-    if(g<min){min=g;atY=y;} }
-  return {gap:min,y:atY};
+// the six sloped pyramid faces: hip vertices on the rafters' outer faces (offset bw/2),
+// apex on the axis raised to enclose the rafter tops. returns the face's up-slope (sl) and
+// outward-normal (fn) unit directions in the meridian (rho,y) plane.
+function coverFrame(H,RcOut,aTop,yFoot,bw){
+  const dr=aTop-RcOut, dy=H-yFoot, Lr=Math.hypot(dr,dy), nnR=dy/Lr, nnY=-dr/Lr;
+  const Rhip=RcOut+bw/2*nnR, yHipFoot=yFoot+bw/2*nnY;
+  const Rtop=aTop+bw/2*nnR, yTopC=H+bw/2*nnY;
+  const yApexCover=Math.max(H,(Rtop*yHipFoot-Rhip*yTopC)/(Rtop-Rhip));
+  const dRho=-Rhip*COS30, dY=yApexCover-yHipFoot, Lface=Math.hypot(dRho,dY);
+  const slR=dRho/Lface, slY=dY/Lface;        // up-slope unit dir (inward, up)
+  const fnR=slY, fnY=-slR;                    // face outward normal (outward, up)
+  return {Rhip,yHipFoot,yApexCover,Lface,slR,slY,fnR,fnY};
+}
+// tie board tilted into the face plane (top-outer edge at ringH, leaning inward along the
+// slope). sample its dome-facing inner + bottom faces for the true minimum gap to the glass.
+function tieClearTilt(fr,ringH,bw,bt,Rs,yc,domeH,Rglass){
+  const tHt=(ringH-fr.yHipFoot)/(fr.yApexCover-fr.yHipFoot);
+  const rFace=fr.Rhip*COS30*(1-tHt);
+  const oBot=[rFace-fr.slR*bw, ringH-fr.slY*bw];
+  const iTop=[rFace-fr.fnR*bt, ringH-fr.fnY*bt];
+  const iBot=[oBot[0]-fr.fnR*bt, oBot[1]-fr.fnY*bt];
+  let min=Infinity, atR=iTop[0], atY=iTop[1]; const n=24;
+  const test=(r,y)=>{ const g=domeDist2D(r,y,Rs,yc,domeH,Rglass); if(g<min){min=g;atR=r;atY=y;} };
+  for(let i=0;i<=n;i++){ const t=i/n;
+    test(iTop[0]+(iBot[0]-iTop[0])*t, iTop[1]+(iBot[1]-iTop[1])*t);    // inner face
+    test(iBot[0]+(oBot[0]-iBot[0])*t, iBot[1]+(oBot[1]-iBot[1])*t);    // bottom face
+  }
+  return {gap:min,rho:atR,y:atY};
 }
 // hip rafter: actual on-edge board at a hexagon corner, foot (RcOut,yFoot) -> apex (aTop,H).
 // its inner face (offset bw/2 toward the glass) is the feature that can touch the dome.
@@ -916,13 +928,13 @@ function drawReadout2(m,st){
   $('cutTbl').innerHTML=
     '<tr><th>Part</th><th>Qty</th><th>Length</th><th>Section</th><th>Cut</th></tr>'+
     `<tr><td>Rafter (on edge)</td><td>6</td><td>${fmt(m.rafterLen)}" (long point)</td><td>${fmt(m.bw)}"&times;${fmt(m.bt)}"</td><td>${fmt(m.slopeDeg,1)}° foot + ${fmt(90-m.pitch,1)}° plumb top</td></tr>`+
-    `<tr><td>Tie frame board</td><td>6</td><td>${fmt(m.sOut)}" long / ${fmt(m.sIn)}" short</td><td>${fmt(m.bt)}"&times;${fmt(m.bw)}"</td><td>30° butt cut both ends (against rafters)</td></tr>`+
+    `<tr><td>Tie frame board</td><td>6</td><td>${fmt(m.sOut)}" long / ${fmt(m.sIn)}" short</td><td>${fmt(m.bt)}"&times;${fmt(m.bw)}"</td><td>tilted ${fmt(m.faceAngle,1)}° to the face, 30° butt ends</td></tr>`+
     `<tr><td>Shoe</td><td>6</td><td>${fmt(m.shoeL)}"</td><td>${fmt(m.shoeW)}"&times;${fmt(m.shoeT)}"</td><td>lies flat on ${fmt(m.slopeDeg,1)}° slope</td></tr>`+
     `<tr><td>King post (hex)</td><td>1</td><td>cut to suit</td><td>${fmt(2*m.aTop)}" across flats</td><td>6 faces, ${fmt(m.bt)}" sides</td></tr>`+
     ($('tPanels').checked?`<tr><td>Cover panel (face)</td><td>6</td><td>${fmt(m.panelSlantCut)}" slant / ${fmt(m.panelBaseCut)}" base</td><td>triangle</td><td>${m.tCover<1?fmt(m.coverSkirt)+'" skirt from apex':'full face, meets at apex'}</td></tr>`:'');
   $('cutNote').textContent=
     `Rafters spring from the yurt slope (feet ${fmt(-m.yFoot)}" below the dome rim) up to a central hex king post. `+
-    `A hexagon tie frame at ${fmt(m.ringH)}" ties them together — each board butts flush between two rafters (meeting the rafters, not each other). `+
+    `A hexagon tie frame at ${fmt(m.ringH)}" ties them together — each board butts flush between two rafters and is tilted ${fmt(m.faceAngle,1)}° to lie in the sloped face, so it backs the cover panel. `+
     `Each shoe lays flat on the ${fmt(m.slopeDeg,1)}° yurt roof, in line with its rafter. `+
     `Total rafter run ≈ ${fmt(6*m.rafterLen)}".`;
 }
@@ -1032,38 +1044,38 @@ function build2(m,st){
     model.add(new THREE.LineSegments(new THREE.EdgesGeometry(shoe.geometry),edgeMat));
   }
 
-  // tie frame at ringH (top flush at ringH), boards bt thick x bw tall.
-  // each board is a STRAIGHT beam spanning between two adjacent rafters, its ends
-  // cut to butt FLUSH against the rafters' side faces — they meet the vertical beams,
-  // not each other (no mitered corner-to-corner ring that would run through the rafters).
-  const yTieB=m.ringH-m.bw, yTieT=m.ringH;
+  // tie frame: each board spans between two adjacent rafters, butting FLUSH against their
+  // side faces, and is TILTED into the sloped pyramid face so its outer face lies flat in
+  // that face and actually backs the panel (instead of standing plumb). Top-outer edge at ringH.
   for(let k=0;k<6;k++){
-    const a0=Math.PI/6+k*Math.PI/3;                 // rafter k azimuth (corner)
-    const a1=Math.PI/6+(k+1)*Math.PI/3;             // rafter k+1 azimuth (corner)
-    const fa=a0+Math.PI/6;                          // mid-face azimuth (edge normal)
-    const fn=new THREE.Vector2(Math.cos(fa),Math.sin(fa));    // outward face normal
-    const ed=new THREE.Vector2(-Math.sin(fa),Math.cos(fa));   // along-edge direction
-    const tt0=new THREE.Vector2(-Math.sin(a0),Math.cos(a0));  // rafter k tangential (side-face normal)
-    const tt1=new THREE.Vector2(-Math.sin(a1),Math.cos(a1));  // rafter k+1 tangential
-    // rafter side faces toward the gap: centerline (at radius Rtie) offset by bt/2
-    const Q0=new THREE.Vector2(m.Rtie*Math.cos(a0),m.Rtie*Math.sin(a0)).addScaledVector(tt0, m.bt/2);
-    const Q1=new THREE.Vector2(m.Rtie*Math.cos(a1),m.Rtie*Math.sin(a1)).addScaledVector(tt1,-m.bt/2);
-    // intersect an edge line (apothem ap, dir ed) with a rafter face plane (point Q, normal tt)
-    const solve=(ap,Q,tt)=>{ const base=fn.clone().multiplyScalar(ap);
-      const s=Q.clone().sub(base).dot(tt)/ed.dot(tt);
-      return base.addScaledVector(ed,s); };
-    const oOut0=solve(m.aTieOut,Q0,tt0), oOut1=solve(m.aTieOut,Q1,tt1);   // outer edge ends
-    const oIn0 =solve(m.aTieIn ,Q0,tt0), oIn1 =solve(m.aTieIn ,Q1,tt1);   // inner edge ends
-    const V=(p,y)=>new THREE.Vector3(p.x,y,p.y);
-    const B=[V(oOut0,yTieB),V(oOut1,yTieB),V(oIn1,yTieB),V(oIn0,yTieB)];
-    const T=[V(oOut0,yTieT),V(oOut1,yTieT),V(oIn1,yTieT),V(oIn0,yTieT)];
+    const a0=Math.PI/6+k*Math.PI/3, a1=Math.PI/6+(k+1)*Math.PI/3, fa=a0+Math.PI/6;
+    const rr=new THREE.Vector3(Math.cos(fa),0,Math.sin(fa));
+    const ed=new THREE.Vector3(-Math.sin(fa),0,Math.cos(fa));               // along-edge (tangential)
+    const sl=new THREE.Vector3(rr.x*m.slR,m.slY,rr.z*m.slR);                // up-slope (in the face)
+    const fn=new THREE.Vector3(rr.x*m.fnR,m.fnY,rr.z*m.fnR);                // face outward normal
+    const tt0=new THREE.Vector3(-Math.sin(a0),0,Math.cos(a0));             // rafter k side-face normal
+    const tt1=new THREE.Vector3(-Math.sin(a1),0,Math.cos(a1));             // rafter k+1 side-face normal
+    // outer-top edge sits on the face plane at height ringH; board goes bw down-slope, bt inward.
+    const oUp=new THREE.Vector3(rr.x*m.rFace,m.ringH,rr.z*m.rFace);
+    const oDn=oUp.clone().addScaledVector(sl,-m.bw);
+    const iUp=oUp.clone().addScaledVector(fn,-m.bt);
+    const iDn=oDn.clone().addScaledVector(fn,-m.bt);
+    // butt each long edge (running along ed) against the two rafter side planes (X·tt = ±bt/2)
+    const cap=(b)=>{
+      const sK =( m.bt/2-b.dot(tt0))/ed.dot(tt0);   // toward rafter k  (its +tt face)
+      const sK1=(-m.bt/2-b.dot(tt1))/ed.dot(tt1);   // toward rafter k+1 (its −tt face)
+      return [b.clone().addScaledVector(ed,sK), b.clone().addScaledVector(ed,sK1)];
+    };
+    const [oUp0,oUp1]=cap(oUp), [oDn0,oDn1]=cap(oDn), [iUp0,iUp1]=cap(iUp), [iDn0,iDn1]=cap(iDn);
+    const B=[oUp0,oDn0,iDn0,iUp0];    // end at rafter k
+    const T=[oUp1,oDn1,iDn1,iUp1];    // end at rafter k+1
     const tie=prism8(B,T,woodMat);
     tie.userData={pick:true,key:'tie'+k,piece:{
       kind:'base', name:`Tie frame board ${k+1} of 6`,
-      quad:[T[0],T[1],T[2],T[3]],
+      quad:[oUp0,oUp1,oDn1,oDn0],
       axisEdge:0, cutEdges:[1,3], cutNames:['Butt cut to rafter','Butt cut to rafter'],
-      longEdges:[[0,'Outer edge (long)'],[2,'Inner edge (short)']],
-      section:[['Board thickness',m.bt],['Height',m.bw]], extra:[] }};
+      longEdges:[[0,'Outer-top edge (long)'],[2,'Outer-bottom edge']],
+      section:[['Board thickness',m.bt],['Width',m.bw]], extra:[['Tilt to face',m.faceAngle]] }};
     pickables.push(tie); model.add(tie);
     model.add(new THREE.LineSegments(new THREE.EdgesGeometry(tie.geometry),edgeMat));
   }
@@ -1127,9 +1139,9 @@ function build2(m,st){
       const D=C.clone().addScaledVector(v,m.Rs/d);
       D.y=Math.min(m.domeH,Math.max(0,D.y)); return D; };
 
-    // tie ring: bottom inner edge at a flat face (flats sit at k*60°)
+    // tie ring: the actual closest wood point on the tilted board, at a flat face (k*60°)
     const phiT=Math.PI/3;
-    const Wt=new THREE.Vector3(m.aTieIn*Math.cos(phiT),m.ringH-m.bw,m.aTieIn*Math.sin(phiT));
+    const Wt=new THREE.Vector3(m.tieRho*Math.cos(phiT),m.tieY,m.tieRho*Math.sin(phiT));
     const Dt=glassPt(Wt);
     model.add(line(Wt,Dt,mk));
     const lblT=makeLabel(`tie ${fmt(m.gapTie)}"`,mk);
@@ -1191,9 +1203,8 @@ function fitApex2(){
   // raising the apex steepens the rafters and widens the derived tie ring, so both
   // clearances grow with H. bisect for the lowest apex that clears by clr.
   const govAt=(H)=>{
-    const dr=m.aTop-m.RcOut, dy=H-m.yFoot, tRing=(m.ringH-m.yFoot)/dy;
-    const Rtie=m.RcOut+dr*tRing, aTieIn=Math.max(0,Rtie*COS30-m.bt);
-    const tie=tieClear2(aTieIn,m.ringH,m.bw,m.Rs,m.yc,m.domeH,m.Rglass).gap;
+    const fr=coverFrame(H,m.RcOut,m.aTop,m.yFoot,m.bw);
+    const tie=tieClearTilt(fr,m.ringH,m.bw,m.bt,m.Rs,m.yc,m.domeH,m.Rglass).gap;
     const raf=rafterClear2(m.RcOut,m.yFoot,m.aTop,H,m.bw,m.Rs,m.yc,m.domeH,m.Rglass).gap;
     return Math.min(tie,raf);
   };

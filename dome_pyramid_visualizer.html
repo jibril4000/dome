@@ -816,6 +816,11 @@ function readModel2(){
   const pitch=Math.atan2(H-yFoot,RcOut-aTop)*180/Math.PI;                 // hip (leg) pitch
   const faceAngle=Math.atan2(yApexCover-yHipFoot,Rhip*COS30)*180/Math.PI; // flat-face pitch
   const rafterLen=Math.hypot(RcOut-aTop,yFoot-H);
+  // tie end cuts are COMPOUND: the rafter side face is vertical, but the board is tilted to
+  // the face, so the cut needs a miter (across the wide/outer face) AND a bevel (across the
+  // narrow edge). cut normal in the board frame: ·ed=cos30, ·sl=½slR, ·fn=½fnR.
+  const tieMiter=Math.atan2(0.5*Math.abs(slR),COS30)*180/Math.PI;   // off square, on the wide face
+  const tieBevel=Math.atan2(0.5*fnR,COS30)*180/Math.PI;            // off square, on the narrow edge
 
   // tie frame: boards TILTED into the face plane (outer face flush in the face) so they
   // actually back the panels, instead of standing plumb. Top-outer edge at height ringH.
@@ -844,7 +849,7 @@ function readModel2(){
 
   return {dia,lip,domeH,bw,bt,slopeDeg,slopeRad,ff,ringH,H,shoeL,shoeW,shoeT,clr,coverSkirt,
           Router,Rglass,Rs,yc,aIn,aOut,RcIn,RcOut,aTop,yFoot,
-          Rhip,yHipFoot,yApexCover,slR,slY,fnR,fnY,rFace,faceAngle,
+          Rhip,yHipFoot,yApexCover,slR,slY,fnR,fnY,rFace,faceAngle,tieMiter,tieBevel,
           panelBase,panelSlant,panelBaseCut,panelSlantCut,tCover,
           aTieIn,aTieOut,tieY:tie.y,tieRho:tie.rho,
           gapTie,gapRaf,rafY:raf.y,rafRho:raf.rho,governing,bind,sIn,sOut,rafterLen,pitch};
@@ -928,13 +933,14 @@ function drawReadout2(m,st){
   $('cutTbl').innerHTML=
     '<tr><th>Part</th><th>Qty</th><th>Length</th><th>Section</th><th>Cut</th></tr>'+
     `<tr><td>Rafter (on edge)</td><td>6</td><td>${fmt(m.rafterLen)}" (long point)</td><td>${fmt(m.bw)}"&times;${fmt(m.bt)}"</td><td>${fmt(m.slopeDeg,1)}° foot + ${fmt(90-m.pitch,1)}° plumb top</td></tr>`+
-    `<tr><td>Tie frame board</td><td>6</td><td>${fmt(m.sOut)}" long / ${fmt(m.sIn)}" short</td><td>${fmt(m.bt)}"&times;${fmt(m.bw)}"</td><td>tilted ${fmt(m.faceAngle,1)}° to the face, 30° butt ends</td></tr>`+
+    `<tr><td>Tie frame board</td><td>6</td><td>${fmt(m.sOut)}" long / ${fmt(m.sIn)}" short</td><td>${fmt(m.bt)}"&times;${fmt(m.bw)}"</td><td>compound ends: ${fmt(m.tieMiter,1)}° miter + ${fmt(m.tieBevel,1)}° bevel (${fmt(m.faceAngle,1)}° face tilt)</td></tr>`+
     `<tr><td>Shoe</td><td>6</td><td>${fmt(m.shoeL)}"</td><td>${fmt(m.shoeW)}"&times;${fmt(m.shoeT)}"</td><td>lies flat on ${fmt(m.slopeDeg,1)}° slope</td></tr>`+
     `<tr><td>King post (hex)</td><td>1</td><td>cut to suit</td><td>${fmt(2*m.aTop)}" across flats</td><td>6 faces, ${fmt(m.bt)}" sides</td></tr>`+
     ($('tPanels').checked?`<tr><td>Cover panel (face)</td><td>6</td><td>${fmt(m.panelSlantCut)}" slant / ${fmt(m.panelBaseCut)}" base</td><td>triangle</td><td>${m.tCover<1?fmt(m.coverSkirt)+'" skirt from apex':'full face, meets at apex'}</td></tr>`:'');
   $('cutNote').textContent=
     `Rafters spring from the yurt slope (feet ${fmt(-m.yFoot)}" below the dome rim) up to a central hex king post. `+
     `A hexagon tie frame at ${fmt(m.ringH)}" ties them together — each board butts flush between two rafters and is tilted ${fmt(m.faceAngle,1)}° to lie in the sloped face, so it backs the cover panel. `+
+    `Because it sits tilted, each end is a compound cut: ${fmt(m.tieMiter,1)}° miter (wide face) + ${fmt(m.tieBevel,1)}° bevel (edge). `+
     `Each shoe lays flat on the ${fmt(m.slopeDeg,1)}° yurt roof, in line with its rafter. `+
     `Total rafter run ≈ ${fmt(6*m.rafterLen)}".`;
 }
@@ -1073,9 +1079,10 @@ function build2(m,st){
     tie.userData={pick:true,key:'tie'+k,piece:{
       kind:'base', name:`Tie frame board ${k+1} of 6`,
       quad:[oUp0,oUp1,oDn1,oDn0],
-      axisEdge:0, cutEdges:[1,3], cutNames:['Butt cut to rafter','Butt cut to rafter'],
+      axisEdge:0, cutEdges:[1,3], cutNames:['Butt miter (wide face)','Butt miter (wide face)'],
       longEdges:[[0,'Outer-top edge (long)'],[2,'Outer-bottom edge']],
-      section:[['Board thickness',m.bt],['Width',m.bw]], extra:[['Tilt to face',m.faceAngle]] }};
+      section:[['Board thickness',m.bt],['Width',m.bw]],
+      extra:[['Face tilt',m.faceAngle],['End bevel (narrow edge)',m.tieBevel]] }};
     pickables.push(tie); model.add(tie);
     model.add(new THREE.LineSegments(new THREE.EdgesGeometry(tie.geometry),edgeMat));
   }

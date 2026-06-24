@@ -194,6 +194,13 @@
       <div class="hint">Taller apex = steeper roof = more clearance over the dome shoulder.</div>
     </div>
 
+    <h2>Face Cover</h2>
+    <div class="field">
+      <label><span>Skirt length from top</span><span class="val" id="v_skirt2">36"</span></label>
+      <input type="number" id="skirt2" value="36" step="0.5" min="1">
+      <div class="hint">When "Cover all six faces" is on, the panels extend this far down the slope from the apex point, leaving a short open skirt below.</div>
+    </div>
+
     <h2>Shoe Feet</h2>
     <div class="field">
       <label><span>Shoe length (along slope)</span><span class="val" id="v_shoeL2">10"</span></label>
@@ -785,6 +792,7 @@ function readModel2(){
   const ff=clampNum(parseFloat($('ff2n').value));
   const ringH=Math.max(0,clampNum(parseFloat($('ring2n').value),15));
   const H=Math.max(ringH+0.5,clampNum(parseFloat($('ah2n').value),30));
+  const coverSkirt=Math.max(1,clampNum(parseFloat($('skirt2').value),36));
   const shoeL=Math.max(1,clampNum(parseFloat($('shoeL2').value),10));
   const shoeW=Math.max(0.5,clampNum(parseFloat($('shoeW2').value),3.5));
   const shoeT=Math.max(0.25,clampNum(parseFloat($('shoeT2').value),1.5));
@@ -835,11 +843,17 @@ function readModel2(){
   const Rhip=RcOut+bw/2*nnR, yHipFoot=yFoot+bw/2*nnY;   // hip vertex at the foot (outer-face centre)
   const Rtop=aTop+bw/2*nnR, yTopC=H+bw/2*nnY;           // rafter top outer-face centre
   const yApexCover=Math.max(H,(Rtop*yHipFoot-Rhip*yTopC)/(Rtop-Rhip));
-  const panelBase=Rhip;                                 // hip-to-hip (hexagon side)
-  const panelSlant=Math.hypot(Rhip,yApexCover-yHipFoot);
+  const panelSlant=Math.hypot(Rhip,yApexCover-yHipFoot);   // full apex-to-foot slant edge
+  const panelBase=Rhip;                                 // hip-to-hip at the foot (hexagon side)
+  // skirt: the panels only reach coverSkirt down the slope from the apex, so the
+  // covered part is a similar (smaller) triangle from the point — a short skirt.
+  const tCover=Math.min(1,coverSkirt/panelSlant);
+  const panelSlantCut=panelSlant*tCover;                // slant edge actually covered (= coverSkirt unless capped)
+  const panelBaseCut=panelBase*tCover;                  // hexagon side at the skirt's lower edge
 
-  return {dia,lip,domeH,bw,bt,slopeDeg,slopeRad,ff,ringH,H,shoeL,shoeW,shoeT,clr,
-          Router,Rglass,Rs,yc,aIn,aOut,RcIn,RcOut,aTop,yFoot,panelBase,panelSlant,yApexCover,
+  return {dia,lip,domeH,bw,bt,slopeDeg,slopeRad,ff,ringH,H,shoeL,shoeW,shoeT,clr,coverSkirt,
+          Router,Rglass,Rs,yc,aIn,aOut,RcIn,RcOut,aTop,yFoot,
+          panelBase,panelSlant,panelBaseCut,panelSlantCut,tCover,yApexCover,
           Rtie,RtieIn,aTieIn,aTieOut,tieY:tie.y,
           gapTie,gapRaf,rafY:raf.y,rafRho:raf.rho,governing,bind,sIn,sOut,rafterLen,pitch};
 }
@@ -905,7 +919,7 @@ function drawReadout2(m,st){
     `<tr><td>Tie frame board</td><td>6</td><td>${fmt(m.sOut)}" long / ${fmt(m.sIn)}" short</td><td>${fmt(m.bt)}"&times;${fmt(m.bw)}"</td><td>30° butt cut both ends (against rafters)</td></tr>`+
     `<tr><td>Shoe</td><td>6</td><td>${fmt(m.shoeL)}"</td><td>${fmt(m.shoeW)}"&times;${fmt(m.shoeT)}"</td><td>lies flat on ${fmt(m.slopeDeg,1)}° slope</td></tr>`+
     `<tr><td>King post (hex)</td><td>1</td><td>cut to suit</td><td>${fmt(2*m.aTop)}" across flats</td><td>6 faces, ${fmt(m.bt)}" sides</td></tr>`+
-    ($('tPanels').checked?`<tr><td>Cover panel (face)</td><td>6</td><td>${fmt(m.panelSlant)}" slant / ${fmt(m.panelBase)}" base</td><td>triangle</td><td>rests on rafter outer faces, meets at apex</td></tr>`:'');
+    ($('tPanels').checked?`<tr><td>Cover panel (face)</td><td>6</td><td>${fmt(m.panelSlantCut)}" slant / ${fmt(m.panelBaseCut)}" base</td><td>triangle</td><td>${m.tCover<1?fmt(m.coverSkirt)+'" skirt from apex':'full face, meets at apex'}</td></tr>`:'');
   $('cutNote').textContent=
     `Rafters spring from the yurt slope (feet ${fmt(-m.yFoot)}" below the dome rim) up to a central hex king post. `+
     `A hexagon tie frame at ${fmt(m.ringH)}" ties them together — each board butts flush between two rafters (meeting the rafters, not each other). `+
@@ -923,6 +937,7 @@ function syncLabels2(m){
   $('v_ff2').textContent=fmt(m.ff)+'"';
   $('v_ring2').textContent=fmt(m.ringH)+'"';
   $('v_ah2').textContent=fmt(m.H)+'"';
+  $('v_skirt2').textContent=fmt(m.coverSkirt)+'"';
   $('v_shoeL2').textContent=fmt(m.shoeL)+'"';
   $('v_shoeW2').textContent=fmt(m.shoeW)+'"';
   $('v_shoeT2').textContent=fmt(m.shoeT)+'"';
@@ -1082,7 +1097,9 @@ function build2(m,st){
     }
     const apex=new THREE.Vector3(0,m.yApexCover,0);
     for(let k=0;k<6;k++){ const k2=(k+1)%6;
-      const f0=hip[k], f1=hip[k2];
+      // skirt: panel reaches only m.tCover of the way down from the apex
+      const f0=apex.clone().lerp(hip[k],m.tCover);
+      const f1=apex.clone().lerp(hip[k2],m.tCover);
       const g=new THREE.BufferGeometry();
       g.setAttribute('position',new THREE.BufferAttribute(new Float32Array([
         f0.x,f0.y,f0.z, f1.x,f1.y,f1.z, apex.x,apex.y,apex.z]),3));
@@ -1095,7 +1112,7 @@ function build2(m,st){
       pan.userData={pick:true,key:'panel'+k,piece:{
         kind:'panel', name:`Cover panel ${k+1} of 6`,
         tri2d:to2D([f0,f1,apex]),
-        rows:[['Bottom edge (hip-to-hip)',fmt(base)+'"'],['Slant edges (×2)',fmt(slant)+'"'],
+        rows:[['Bottom edge (skirt)',fmt(base)+'"'],['Slant edges (×2)',fmt(slant)+'"'],
               ['Slant height',fmt(height)+'"'],['Apex angle',fmt(apexAng,1)+'°'],
               ['Base angles (×2)',fmt(baseAng,1)+'°']]}};
       pickables.push(pan); model.add(pan);
@@ -1206,7 +1223,7 @@ function boot(){
   sync('slope2','slope2n'); sync('ff2','ff2n'); sync('ring2','ring2n'); sync('ah2','ah2n');
   ['dia','lip','domeH','bw','bt','clr','onEdge','tGlass','tPanels','tMarkers','tYurt','tGrid','tRot']
     .forEach(id=>$(id).addEventListener('input',render));
-  ['shoeL2','shoeW2','shoeT2','clr2'].forEach(id=>$(id).addEventListener('input',render));
+  ['shoeL2','shoeW2','shoeT2','clr2','skirt2'].forEach(id=>$(id).addEventListener('input',render));
   $('fitBase').addEventListener('click',fitBase);
   $('fitApex').addEventListener('click',fitApex);
   $('fitAll').addEventListener('click',()=>{ fitBase(); fitApex(); });

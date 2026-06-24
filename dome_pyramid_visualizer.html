@@ -166,10 +166,10 @@
 
     <h2>Yurt Roof</h2>
     <div class="field">
-      <label><span>Roof slope (pitch)</span><span class="val" id="v_slope2">15°</span></label>
-      <input type="range" id="slope2" min="0" max="45" step="0.5" value="15">
-      <input type="number" id="slope2n" value="15" step="0.5" style="margin-top:6px">
-      <div class="hint">Angle of the yurt roof from horizontal, measured at the rim. The shoes lay flat on this slope.</div>
+      <label><span>Roof slope (pitch)</span><span class="val" id="v_slope2">30°</span></label>
+      <input type="range" id="slope2" min="0" max="45" step="0.5" value="30">
+      <input type="number" id="slope2n" value="30" step="0.5" style="margin-top:6px">
+      <div class="hint">Angle of the yurt roof from horizontal, measured at the rim (fixed at 30° — the actual yurt slope). The shoes lay flat on this slope.</div>
     </div>
 
     <h2>Foot Ring (feet)</h2>
@@ -788,7 +788,7 @@ function readModel2(){
   const domeH=Math.max(0.25,clampNum(parseFloat($('domeH').value),0.25));
   const bw=Math.max(0.25,clampNum(parseFloat($('bw').value),3.5));
   const bt=Math.max(0.25,clampNum(parseFloat($('bt').value),1.5));
-  const slopeDeg=Math.max(0,clampNum(parseFloat($('slope2n').value),15));
+  const slopeDeg=Math.max(0,clampNum(parseFloat($('slope2n').value),30));
   const ff=clampNum(parseFloat($('ff2n').value));
   const ringH=Math.max(0,clampNum(parseFloat($('ring2n').value),15));
   const H=Math.max(ringH+0.5,clampNum(parseFloat($('ah2n').value),30));
